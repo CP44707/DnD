@@ -2,10 +2,38 @@
 <html>
 <head>
   <title>Host</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: white;
+      padding: 10px;
+    }
+  </style>
 </head>
+
 <body>
-  <input id="host" placeholder="Enter text">
-  <iframe src="https://app.roll20.net/..."></iframe>
+
+  <div id="controls">
+    <input id="host" placeholder="Enter text">
+  </div>
+
+  <iframe src="https://app.roll20.net"></iframe>
 
   <script>
     const input = document.getElementById("host");
@@ -14,5 +42,6 @@
       localStorage.setItem("hostText", input.value);
     });
   </script>
+
 </body>
 </html>
