@@ -47,31 +47,82 @@
       from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 
-    const status = document.getElementById("status");
-    const enableButton = document.getElementById("enableAudio");
+    // --------------------------------------------------
+    // BASIC SETTINGS
+    // --------------------------------------------------
+
+    const status =
+      document.getElementById("status");
+
+    const enableButton =
+      document.getElementById("enableAudio");
+
+
+    // How long the end and beginning overlap.
+    // 1.5 seconds is a good starting point.
+    const CROSSFADE_TIME = 1.5;
 
 
     // --------------------------------------------------
-    // AUDIO
+    // AUDIO STATE
     // --------------------------------------------------
 
     let audioEnabled = false;
 
+    let audioContext = null;
+
+
+    // Sound effects
+    let soundAudio = null;
+
+
+    // Music
     let musicAudio = null;
+    let musicGain = null;
+
+    let nextMusicAudio = null;
+    let nextMusicGain = null;
 
     let currentMusicFile = null;
 
     let repeatMusic = false;
 
+    let crossfadeTimer = null;
 
-    // Enable audio after user interaction
-    enableButton.onclick = () => {
+
+    // --------------------------------------------------
+    // ENABLE AUDIO
+    // --------------------------------------------------
+
+    enableButton.onclick = async () => {
 
       audioEnabled = true;
 
-      enableButton.textContent = "🔊 Audio Enabled";
 
-      enableButton.classList.add("enabled");
+      // Create Web Audio context after
+      // a real user interaction.
+      if (!audioContext) {
+
+        audioContext =
+          new AudioContext();
+
+      }
+
+
+      if (audioContext.state === "suspended") {
+
+        await audioContext.resume();
+
+      }
+
+
+      enableButton.textContent =
+        "🔊 Audio Enabled";
+
+      enableButton.classList.add(
+        "enabled"
+      );
+
 
       status.textContent =
         "🟢 Audio enabled — waiting for sounds";
@@ -83,16 +134,22 @@
     // SUPABASE
     // --------------------------------------------------
 
-    const keys = await fetch("keys.json").then(r => r.json());
+    const keys =
+      await fetch("keys.json")
+        .then(r => r.json());
 
 
-    const supabase = createClient(
-      keys.supabaseUrl,
-      keys.supabaseKey
-    );
+    const supabase =
+      createClient(
+        keys.supabaseUrl,
+        keys.supabaseKey
+      );
 
 
-    const channel = supabase.channel("soundboard");
+    // IMPORTANT:
+    // This must match the host channel.
+    const channel =
+      supabase.channel("soundboard");
 
 
     // --------------------------------------------------
@@ -104,10 +161,14 @@
       { event: "play-sound" },
       async (message) => {
 
-        console.log("SOUND RECEIVED:", message);
+        console.log(
+          "SOUND RECEIVED:",
+          message
+        );
 
 
-        const file = message?.payload?.file;
+        const file =
+          message?.payload?.file;
 
 
         if (!file) {
@@ -131,29 +192,39 @@
         }
 
 
-        console.log("Playing sound:", file);
-
-
-        const audio = new Audio(
-          "sounds/" + encodeURIComponent(file)
+        console.log(
+          "Playing sound:",
+          file
         );
 
 
-        audio.play().catch(error => {
-
-          console.error(
-            "Sound playback failed:",
-            error
+        soundAudio =
+          new Audio(
+            "sounds/" +
+            encodeURIComponent(file)
           );
 
-        });
+
+        soundAudio
+          .play()
+          .catch(error => {
+
+            console.error(
+              "Sound playback failed:",
+              error
+            );
+
+            status.textContent =
+              "🔴 Sound playback failed.";
+
+          });
 
       }
     );
 
 
     // --------------------------------------------------
-    // MUSIC PLAY
+    // PLAY MUSIC
     // --------------------------------------------------
 
     channel.on(
@@ -161,10 +232,14 @@
       { event: "play-music" },
       async (message) => {
 
-        console.log("MUSIC PLAY:", message);
+        console.log(
+          "MUSIC PLAY:",
+          message
+        );
 
 
-        const file = message?.payload?.file;
+        const file =
+          message?.payload?.file;
 
 
         if (!file) return;
@@ -183,28 +258,48 @@
         currentMusicFile = file;
 
 
-        // Stop previous song
-        if (musicAudio) {
-
-          musicAudio.pause();
-
-          musicAudio.currentTime = 0;
-
-        }
+        // Stop whatever music was playing.
+        stopMusic();
 
 
-        // Create new music player
-        musicAudio = new Audio(
-          "music/" + encodeURIComponent(file)
+        // Create the new music element.
+        musicAudio =
+          new Audio(
+            "music/" +
+            encodeURIComponent(file)
+          );
+
+
+        musicAudio.preload = "auto";
+
+
+        // Create Web Audio gain node.
+        musicGain =
+          audioContext.createGain();
+
+
+        // Connect HTML audio to Web Audio.
+        const source =
+          audioContext
+            .createMediaElementSource(
+              musicAudio
+            );
+
+
+        source.connect(musicGain);
+
+        musicGain.connect(
+          audioContext.destination
         );
 
 
-        musicAudio.loop = repeatMusic;
+        // Normal volume.
+        musicGain.gain.value = 1;
 
 
+        // If the song ends naturally and
+        // repeat isn't enabled, we're done.
         musicAudio.onended = () => {
-
-          console.log("Music ended.");
 
           if (!repeatMusic) {
 
@@ -224,12 +319,16 @@
 
           await musicAudio.play();
 
+          // Start checking for the crossfade point.
+          startCrossfadeTimer();
+
         } catch (error) {
 
           console.error(
             "Music playback failed:",
             error
           );
+
 
           status.textContent =
             "🔴 Music playback failed.";
@@ -241,7 +340,7 @@
 
 
     // --------------------------------------------------
-    // MUSIC PAUSE
+    // PAUSE MUSIC
     // --------------------------------------------------
 
     channel.on(
@@ -249,12 +348,19 @@
       { event: "pause-music" },
       () => {
 
-        console.log("MUSIC PAUSE");
+        console.log(
+          "MUSIC PAUSE"
+        );
 
 
         if (musicAudio) {
 
           musicAudio.pause();
+
+          // Don't allow the crossfade timer
+          // to start another copy while paused.
+          stopCrossfadeTimer();
+
 
           status.textContent =
             "⏸ Music paused";
@@ -266,7 +372,7 @@
 
 
     // --------------------------------------------------
-    // MUSIC REPEAT
+    // REPEAT MUSIC
     // --------------------------------------------------
 
     channel.on(
@@ -274,15 +380,21 @@
       { event: "repeat-music" },
       (message) => {
 
-        console.log("MUSIC REPEAT:", message);
+        console.log(
+          "MUSIC REPEAT:",
+          message
+        );
 
 
-        const file = message?.payload?.file;
+        const file =
+          message?.payload?.file;
 
         const repeat =
           message?.payload?.repeat;
 
 
+        // Ignore repeat commands for
+        // a song that isn't currently playing.
         if (
           file &&
           currentMusicFile !== file
@@ -293,70 +405,379 @@
         }
 
 
-        repeatMusic = !!repeat;
+        repeatMusic =
+          !!repeat;
 
 
-        if (musicAudio) {
+        if (repeatMusic) {
 
-          musicAudio.loop = repeatMusic;
+          status.textContent =
+            "🔁 Music repeating";
+
+
+          // Begin monitoring the song.
+          startCrossfadeTimer();
+
+        } else {
+
+          stopCrossfadeTimer();
+
+
+          status.textContent =
+            "🎵 Repeat off";
 
         }
-
-
-        status.textContent =
-          repeatMusic
-            ? "🔁 Music repeating"
-            : "🎵 Repeat off";
 
       }
     );
 
 
     // --------------------------------------------------
-    // CONNECT
+    // START CROSSFADE TIMER
     // --------------------------------------------------
 
-    channel.subscribe((state, error) => {
+    function startCrossfadeTimer() {
 
-      console.log("STATE:", state);
-      console.log("ERROR:", error);
+      stopCrossfadeTimer();
 
 
-      if (state === "SUBSCRIBED") {
+      if (!musicAudio) return;
 
-        if (audioEnabled) {
+      if (!repeatMusic) return;
+
+
+      crossfadeTimer =
+        setInterval(() => {
+
+          if (!musicAudio) return;
+
+          if (!repeatMusic) return;
+
+
+          // Don't do anything while paused.
+          if (musicAudio.paused) return;
+
+
+          const duration =
+            musicAudio.duration;
+
+
+          const currentTime =
+            musicAudio.currentTime;
+
+
+          if (!Number.isFinite(duration)) {
+            return;
+          }
+
+
+          const remaining =
+            duration - currentTime;
+
+
+          // Start the next copy when
+          // we're CROSSFADE_TIME from the end.
+          if (
+            remaining <= CROSSFADE_TIME &&
+            remaining > 0
+          ) {
+
+            performCrossfade();
+
+          }
+
+        }, 50);
+
+    }
+
+
+    // --------------------------------------------------
+    // STOP CROSSFADE TIMER
+    // --------------------------------------------------
+
+    function stopCrossfadeTimer() {
+
+      if (crossfadeTimer) {
+
+        clearInterval(
+          crossfadeTimer
+        );
+
+        crossfadeTimer = null;
+
+      }
+
+    }
+
+
+    // --------------------------------------------------
+    // PERFORM CROSSFADE
+    // --------------------------------------------------
+
+    async function performCrossfade() {
+
+      if (!musicAudio) return;
+
+      if (!repeatMusic) return;
+
+
+      // Prevent the timer from starting
+      // multiple overlapping copies.
+      if (nextMusicAudio) return;
+
+
+      const file =
+        currentMusicFile;
+
+
+      console.log(
+        "Starting crossfade:",
+        file
+      );
+
+
+      // Create second copy of the song.
+      nextMusicAudio =
+        new Audio(
+          "music/" +
+          encodeURIComponent(file)
+        );
+
+
+      nextMusicAudio.preload =
+        "auto";
+
+
+      // Create gain node for second copy.
+      nextMusicGain =
+        audioContext.createGain();
+
+
+      const nextSource =
+        audioContext
+          .createMediaElementSource(
+            nextMusicAudio
+          );
+
+
+      nextSource.connect(
+        nextMusicGain
+      );
+
+
+      nextMusicGain.connect(
+        audioContext.destination
+      );
+
+
+      // Start the new song at zero volume.
+      nextMusicGain.gain.value = 0;
+
+
+      try {
+
+        await nextMusicAudio.play();
+
+      } catch (error) {
+
+        console.error(
+          "Crossfade playback failed:",
+          error
+        );
+
+
+        nextMusicAudio = null;
+        nextMusicGain = null;
+
+        return;
+
+      }
+
+
+      const now =
+        audioContext.currentTime;
+
+
+      // ------------------------------
+      // OLD SONG: FADE OUT
+      // ------------------------------
+
+      musicGain.gain.cancelScheduledValues(
+        now
+      );
+
+
+      musicGain.gain.setValueAtTime(
+        musicGain.gain.value,
+        now
+      );
+
+
+      musicGain.gain.linearRampToValueAtTime(
+        0,
+        now + CROSSFADE_TIME
+      );
+
+
+      // ------------------------------
+      // NEW SONG: FADE IN
+      // ------------------------------
+
+      nextMusicGain.gain.cancelScheduledValues(
+        now
+      );
+
+
+      nextMusicGain.gain.setValueAtTime(
+        0,
+        now
+      );
+
+
+      nextMusicGain.gain.linearRampToValueAtTime(
+        1,
+        now + CROSSFADE_TIME
+      );
+
+
+      // After the crossfade, make the new
+      // audio element the current one.
+      setTimeout(() => {
+
+        if (musicAudio) {
+
+          musicAudio.pause();
+
+          musicAudio.currentTime = 0;
+
+        }
+
+
+        musicAudio =
+          nextMusicAudio;
+
+        musicGain =
+          nextMusicGain;
+
+
+        nextMusicAudio = null;
+        nextMusicGain = null;
+
+
+        console.log(
+          "Crossfade complete."
+        );
+
+
+        // Continue monitoring the new copy.
+        startCrossfadeTimer();
+
+
+      }, CROSSFADE_TIME * 1000);
+
+    }
+
+
+    // --------------------------------------------------
+    // STOP ALL MUSIC
+    // --------------------------------------------------
+
+    function stopMusic() {
+
+      stopCrossfadeTimer();
+
+
+      if (musicAudio) {
+
+        musicAudio.pause();
+
+        musicAudio.currentTime = 0;
+
+      }
+
+
+      if (nextMusicAudio) {
+
+        nextMusicAudio.pause();
+
+        nextMusicAudio.currentTime = 0;
+
+      }
+
+
+      musicAudio = null;
+      nextMusicAudio = null;
+
+
+      musicGain = null;
+      nextMusicGain = null;
+
+    }
+
+
+    // --------------------------------------------------
+    // CONNECT TO REALTIME
+    // --------------------------------------------------
+
+    channel.subscribe(
+      (state, error) => {
+
+        console.log(
+          "STATE:",
+          state
+        );
+
+        console.log(
+          "ERROR:",
+          error
+        );
+
+
+        if (
+          state === "SUBSCRIBED"
+        ) {
+
+          if (audioEnabled) {
+
+            status.textContent =
+              "🟢 Connected — waiting for sounds";
+
+          } else {
+
+            status.textContent =
+              "🟢 Connected — click Enable Audio";
+
+          }
+
+        }
+
+
+        if (
+          state === "CHANNEL_ERROR"
+        ) {
 
           status.textContent =
-            "🟢 Connected — waiting for sounds";
+            "🔴 Realtime connection error";
 
-        } else {
+
+          console.error(
+            error
+          );
+
+        }
+
+
+        if (
+          state === "TIMED_OUT"
+        ) {
 
           status.textContent =
-            "🟢 Connected — click Enable Audio";
+            "🔴 Realtime connection timed out";
 
         }
 
       }
-
-
-      if (state === "CHANNEL_ERROR") {
-
-        status.textContent =
-          "🔴 Realtime connection error";
-
-        console.error(error);
-
-      }
-
-
-      if (state === "TIMED_OUT") {
-
-        status.textContent =
-          "🔴 Realtime connection timed out";
-
-      }
-
-    });
+    );
 
   </script>
 
