@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -50,9 +49,11 @@
       from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 
-    // Load keys
+    // Load Supabase keys
     const keys = await fetch("keys.json").then(r => r.json());
 
+
+    // Create Supabase client
     const supabase = createClient(
       keys.supabaseUrl,
       keys.supabaseKey
@@ -66,13 +67,17 @@
     let connected = false;
 
 
-    // Connect to Supabase
+    // IMPORTANT:
+    // Host and player must use the SAME channel name.
     const channel = supabase.channel("soundboard");
 
 
+    // Connect to Supabase Realtime
     channel.subscribe((state, error) => {
 
       console.log("Supabase:", state);
+      console.log("Error:", error);
+
 
       if (state === "SUBSCRIBED") {
 
@@ -80,41 +85,49 @@
 
         status.textContent = "🟢 Connected";
 
-        document.querySelectorAll("button").forEach(button => {
-          button.disabled = false;
-        });
-
+        document
+          .querySelectorAll("button")
+          .forEach(button => {
+            button.disabled = false;
+          });
       }
 
+
       if (state === "CHANNEL_ERROR") {
+
+        connected = false;
 
         status.textContent = "🔴 Connection error";
 
         console.error(error);
-
       }
+
 
       if (state === "TIMED_OUT") {
 
-        status.textContent = "🔴 Connection timed out";
+        connected = false;
 
+        status.textContent = "🔴 Connection timed out";
       }
 
     });
 
 
-    // Load sounds
+    // Load sound filenames
     const files = await fetch("sounds.json").then(r => r.json());
 
 
+    // Create buttons
     files.forEach(file => {
 
       const button = document.createElement("button");
 
+
       const name = file
-        .replace(/\.mp3$/i, "")
+        .replace(/\.(mp3|wav|ogg)$/i, "")
         .replace(/[-_]/g, " ")
         .replace(/\b\w/g, letter => letter.toUpperCase());
+
 
       button.textContent = name;
 
@@ -123,7 +136,16 @@
 
       button.onclick = async () => {
 
+        if (!connected) {
+
+          console.warn("Not connected yet.");
+
+          return;
+        }
+
+
         console.log("Sending:", file);
+
 
         const result = await channel.send({
 
@@ -137,7 +159,18 @@
 
         });
 
+
         console.log("Send result:", result);
+
+
+        if (result !== "ok") {
+
+          console.error(
+            "Failed to send sound:",
+            result
+          );
+
+        }
 
       };
 
@@ -150,4 +183,3 @@
 
 </body>
 </html>
-```

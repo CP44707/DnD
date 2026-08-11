@@ -1,65 +1,199 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Realtime Test</title>
+  <title>Soundboard Player</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      background: #222;
+      color: white;
+    }
+
+    #status {
+      white-space: pre-wrap;
+      margin-bottom: 20px;
+    }
+
+    #enableAudio {
+      padding: 20px 30px;
+      font-size: 18px;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+
+    #enableAudio.enabled {
+      background: #3a3;
+      color: white;
+    }
+  </style>
 </head>
 
 <body>
 
-  <h1>Supabase Realtime Test</h1>
+  <h1>Soundboard Player</h1>
 
-  <pre id="status">Starting...</pre>
+  <p id="status">Connecting...</p>
 
-<script type="module">
+  <button id="enableAudio">
+    🔊 Enable Audio
+  </button>
 
-  import { createClient }
-    from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-  const status = document.getElementById("status");
+  <script type="module">
 
-  try {
+    import { createClient }
+      from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-    status.textContent = "Loading keys...";
 
+    const status = document.getElementById("status");
+    const enableButton = document.getElementById("enableAudio");
+
+
+    // Audio must receive user interaction in many browsers.
+    let audioEnabled = false;
+
+
+    enableButton.onclick = () => {
+
+      audioEnabled = true;
+
+      enableButton.textContent = "🔊 Audio Enabled";
+
+      enableButton.classList.add("enabled");
+
+      status.textContent =
+        "🟢 Audio enabled — waiting for sounds";
+
+    };
+
+
+    // Load Supabase keys
     const keys = await fetch("keys.json").then(r => r.json());
 
-    console.log("Supabase URL:", keys.supabaseUrl);
-    console.log("Key loaded:", !!keys.supabaseKey);
 
-    status.textContent = "Creating Supabase client...";
-
+    // Create Supabase client
     const supabase = createClient(
       keys.supabaseUrl,
       keys.supabaseKey
     );
 
-    status.textContent = "Connecting to Supabase...";
 
+    // IMPORTANT:
+    // This MUST match the host.
     const channel = supabase.channel("soundboard");
 
+
+    // Listen for sound broadcasts
+    channel.on(
+      "broadcast",
+      { event: "play-sound" },
+      async (payload) => {
+
+        console.log("RECEIVED:", payload);
+
+
+        const file = payload?.payload?.file;
+
+
+        if (!file) {
+
+          console.error(
+            "Received play-sound event without a filename:",
+            payload
+          );
+
+          return;
+        }
+
+
+        console.log("Playing:", file);
+
+
+        status.textContent =
+          "🔊 Playing: " + file;
+
+
+        if (!audioEnabled) {
+
+          console.warn(
+            "Audio has not been enabled by the user."
+          );
+
+          status.textContent =
+            "⚠️ Sound received, but audio is not enabled. Click Enable Audio.";
+
+          return;
+        }
+
+
+        // Sounds are stored in the /sounds folder.
+        const audio = new Audio(
+          "sounds/" + encodeURIComponent(file)
+        );
+
+
+        audio.play().catch(error => {
+
+          console.error(
+            "Audio playback failed:",
+            error
+          );
+
+
+          status.textContent =
+            "🔴 Audio playback failed — check the console.";
+
+        });
+
+      }
+    );
+
+
+    // Connect to Supabase Realtime
     channel.subscribe((state, error) => {
 
       console.log("STATE:", state);
       console.log("ERROR:", error);
 
-      status.textContent =
-        "STATE: " + state +
-        "\n\nERROR: " +
-        (error ? JSON.stringify(error, Object.getOwnPropertyNames(error), 2) : "none");
+
+      if (state === "SUBSCRIBED") {
+
+        if (audioEnabled) {
+
+          status.textContent =
+            "🟢 Connected — waiting for sounds";
+
+        } else {
+
+          status.textContent =
+            "🟢 Connected — click Enable Audio";
+
+        }
+
+      }
+
+
+      if (state === "CHANNEL_ERROR") {
+
+        status.textContent =
+          "🔴 Realtime connection error";
+
+        console.error(error);
+      }
+
+
+      if (state === "TIMED_OUT") {
+
+        status.textContent =
+          "🔴 Realtime connection timed out";
+
+      }
 
     });
 
-  } catch (error) {
-
-    console.error(error);
-
-    status.textContent =
-      "FAILED:\n\n" +
-      JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
-
-  }
-
-</script>
+  </script>
 
 </body>
 </html>
