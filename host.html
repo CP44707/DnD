@@ -12,6 +12,10 @@
       color: white;
     }
 
+    #status {
+      margin-bottom: 20px;
+    }
+
     #sounds {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -23,6 +27,11 @@
       font-size: 18px;
       cursor: pointer;
     }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 
@@ -30,7 +39,10 @@
 
   <h1>Soundboard</h1>
 
+  <p id="status">Connecting...</p>
+
   <div id="sounds"></div>
+
 
   <script type="module">
 
@@ -38,8 +50,8 @@
       from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 
-    // Load Supabase settings
-    const keys = await fetch("keys.json").then(response => response.json());
+    // Load keys
+    const keys = await fetch("keys.json").then(r => r.json());
 
     const supabase = createClient(
       keys.supabaseUrl,
@@ -47,38 +59,85 @@
     );
 
 
-    // Connect to soundboard
+    const status = document.getElementById("status");
+    const container = document.getElementById("sounds");
+
+
+    let connected = false;
+
+
+    // Connect to Supabase
     const channel = supabase.channel("soundboard");
 
-    channel.subscribe();
+
+    channel.subscribe((state, error) => {
+
+      console.log("Supabase:", state);
+
+      if (state === "SUBSCRIBED") {
+
+        connected = true;
+
+        status.textContent = "🟢 Connected";
+
+        document.querySelectorAll("button").forEach(button => {
+          button.disabled = false;
+        });
+
+      }
+
+      if (state === "CHANNEL_ERROR") {
+
+        status.textContent = "🔴 Connection error";
+
+        console.error(error);
+
+      }
+
+      if (state === "TIMED_OUT") {
+
+        status.textContent = "🔴 Connection timed out";
+
+      }
+
+    });
 
 
     // Load sounds
-    const files = await fetch("sounds.json").then(response => response.json());
+    const files = await fetch("sounds.json").then(r => r.json());
 
-    const container = document.getElementById("sounds");
 
     files.forEach(file => {
 
       const button = document.createElement("button");
 
       const name = file
-        .replace(".mp3", "")
+        .replace(/\.mp3$/i, "")
         .replace(/[-_]/g, " ")
         .replace(/\b\w/g, letter => letter.toUpperCase());
 
       button.textContent = name;
 
+      button.disabled = true;
+
 
       button.onclick = async () => {
 
-        await channel.send({
+        console.log("Sending:", file);
+
+        const result = await channel.send({
+
           type: "broadcast",
+
           event: "play-sound",
+
           payload: {
             file: file
           }
+
         });
+
+        console.log("Send result:", result);
 
       };
 

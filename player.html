@@ -16,6 +16,11 @@
     button {
       font-size: 24px;
       padding: 20px 40px;
+      cursor: pointer;
+    }
+
+    #status {
+      margin-top: 20px;
     }
   </style>
 </head>
@@ -25,10 +30,10 @@
   <h1>Player</h1>
 
   <button id="enable">
-    🔊 Enable Sound
+    🔊 Start Audio
   </button>
 
-  <p id="status">Waiting...</p>
+  <p id="status">Connecting...</p>
 
   <audio id="audio"></audio>
 
@@ -39,8 +44,8 @@
       from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 
-    // Load Supabase settings
-    const keys = await fetch("keys.json").then(response => response.json());
+    // Load keys
+    const keys = await fetch("keys.json").then(r => r.json());
 
     const supabase = createClient(
       keys.supabaseUrl,
@@ -53,39 +58,95 @@
     const status = document.getElementById("status");
 
 
-    // Enable audio
-    enable.onclick = () => {
+    let audioEnabled = false;
 
-      audio.src = "";
-      enable.style.display = "none";
 
-      status.textContent = "🔊 Sound enabled";
+    // Player must interact with the page once
+    enable.onclick = async () => {
+
+      try {
+
+        // Create a tiny silent sound to unlock audio
+        audio.src =
+          "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=";
+
+        await audio.play();
+
+        audio.pause();
+        audio.currentTime = 0;
+
+        audioEnabled = true;
+
+        enable.style.display = "none";
+
+        status.textContent = "🔊 Audio enabled — waiting for sounds";
+
+      } catch (error) {
+
+        console.error(error);
+
+        status.textContent = "Could not enable audio.";
+
+      }
 
     };
 
 
-    // Connect to soundboard
+    // Connect to Supabase
     const channel = supabase.channel("soundboard");
+
 
     channel
       .on(
         "broadcast",
         { event: "play-sound" },
-        (message) => {
+        async (message) => {
+
+          console.log("Received:", message);
+
+          if (!audioEnabled) {
+            console.log("Audio isn't enabled yet.");
+            return;
+          }
 
           const file = message.payload.file;
 
-          status.textContent = "Playing: " + file;
+          status.textContent = "🔊 Playing: " + file;
 
           audio.src = "sounds/" + file;
 
           audio.currentTime = 0;
 
-          audio.play();
+          try {
+            await audio.play();
+          } catch (error) {
+            console.error("Audio error:", error);
+            status.textContent = "Audio failed — check the console.";
+          }
 
         }
       )
-      .subscribe();
+      .subscribe((state) => {
+
+        console.log("Supabase:", state);
+
+        if (state === "SUBSCRIBED") {
+
+          if (!audioEnabled) {
+            status.textContent = "Connected — click Start Audio";
+          }
+
+        }
+
+        if (state === "CHANNEL_ERROR") {
+          status.textContent = "Supabase connection error.";
+        }
+
+        if (state === "TIMED_OUT") {
+          status.textContent = "Supabase connection timed out.";
+        }
+
+      });
 
   </script>
 
