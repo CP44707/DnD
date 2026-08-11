@@ -1,311 +1,382 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VoiceForge — Live Voice Changer</title>
+<title>VoiceForge — Natural Voice Changer</title>
 
 <style>
-    * {
-        box-sizing: border-box;
+:root {
+    --bg: #080a10;
+    --panel: #10131c;
+    --panel2: #151925;
+    --line: rgba(255,255,255,.075);
+    --text: #f5f7ff;
+    --muted: #8991a7;
+    --purple: #8b5cf6;
+    --purple2: #6d4ae8;
+    --green: #22c55e;
+    --red: #ef4444;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 15% 0%, rgba(124,58,237,.18), transparent 35%),
+        radial-gradient(circle at 100% 100%, rgba(37,99,235,.12), transparent 35%),
+        var(--bg);
+    color: var(--text);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+                 BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 28px;
+}
+
+.app {
+    width: min(1100px, 100%);
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: rgba(16,19,28,.96);
+    box-shadow: 0 30px 100px rgba(0,0,0,.55);
+    overflow: hidden;
+}
+
+header {
+    padding: 26px 30px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.brand {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+
+.logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg,#8b5cf6,#4f46e5);
+    box-shadow: 0 10px 30px rgba(99,102,241,.25);
+    font-size: 23px;
+}
+
+h1 {
+    margin: 0;
+    font-size: 21px;
+    letter-spacing: -.4px;
+}
+
+.subtitle {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #4b5264;
+}
+
+.status.live {
+    color: #86efac;
+}
+
+.status.live .status-dot {
+    background: var(--green);
+    box-shadow: 0 0 12px var(--green);
+}
+
+main {
+    padding: 28px 30px 30px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.card {
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,.025);
+}
+
+.label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    font-weight: 750;
+}
+
+select {
+    width: 100%;
+    color: var(--text);
+    background: #0c0f17;
+    border: 1px solid #292e3d;
+    border-radius: 10px;
+    padding: 11px 12px;
+    outline: none;
+}
+
+select:focus {
+    border-color: var(--purple);
+}
+
+.section {
+    margin-top: 22px;
+}
+
+.section-title {
+    font-size: 13px;
+    font-weight: 750;
+    margin-bottom: 11px;
+}
+
+.presets {
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    gap: 10px;
+}
+
+.preset {
+    padding: 13px 10px;
+    border: 1px solid #292e3d;
+    background: #10131c;
+    border-radius: 11px;
+    color: #cdd2df;
+    cursor: pointer;
+    text-align: center;
+    font-weight: 700;
+    transition: .15s;
+}
+
+.preset:hover {
+    border-color: #6550b7;
+    color: white;
+}
+
+.preset.active {
+    border-color: var(--purple);
+    background: rgba(139,92,246,.13);
+    color: white;
+    box-shadow: inset 0 0 0 1px rgba(139,92,246,.15);
+}
+
+.controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.control {
+    padding: 17px 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(255,255,255,.025);
+}
+
+.control-head {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.control-name {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.control-value {
+    color: #a78bfa;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+input[type=range] {
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: #292e3d;
+    border-radius: 5px;
+    outline: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--purple);
+    border: 3px solid #ddd6fe;
+    cursor: pointer;
+}
+
+input[type=range]::-moz-range-thumb {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--purple);
+    border: 3px solid #ddd6fe;
+    cursor: pointer;
+}
+
+.toggle-row {
+    display: flex;
+    gap: 10px;
+}
+
+.toggle {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #292e3d;
+    background: #10131c;
+    color: #aeb5c6;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.toggle.active {
+    color: white;
+    border-color: var(--purple);
+    background: rgba(139,92,246,.13);
+}
+
+.meter-card {
+    margin-top: 16px;
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(255,255,255,.025);
+}
+
+.meter {
+    height: 7px;
+    background: #191d28;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.meter-fill {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg,#22c55e,#eab308,#ef4444);
+    transition: width .05s linear;
+}
+
+.actions {
+    display: flex;
+    gap: 11px;
+    margin-top: 18px;
+}
+
+button {
+    border: 0;
+    border-radius: 11px;
+    padding: 13px 18px;
+    color: white;
+    background: #252a37;
+    cursor: pointer;
+    font-weight: 800;
+}
+
+button:hover {
+    filter: brightness(1.12);
+}
+
+#start {
+    flex: 1;
+    background: linear-gradient(135deg,#7c3aed,#4f46e5);
+    box-shadow: 0 10px 25px rgba(79,70,229,.22);
+}
+
+#start.running {
+    background: linear-gradient(135deg,#dc2626,#991b1b);
+}
+
+.info {
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(99,102,241,.15);
+    background: rgba(99,102,241,.055);
+    color: #aeb5c7;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.info strong {
+    color: #ddd6fe;
+}
+
+.warning {
+    display: none;
+    margin-top: 14px;
+    padding: 13px 15px;
+    border-radius: 11px;
+    background: rgba(239,68,68,.08);
+    border: 1px solid rgba(239,68,68,.18);
+    color: #fca5a5;
+    font-size: 12px;
+}
+
+footer {
+    padding: 16px 30px;
+    border-top: 1px solid var(--line);
+    color: #5f6678;
+    text-align: center;
+    font-size: 11px;
+}
+
+@media(max-width:720px) {
+    .grid,
+    .controls-grid {
+        grid-template-columns: 1fr;
     }
 
-    body {
-        margin: 0;
-        min-height: 100vh;
-        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #f5f7ff;
-        background:
-            radial-gradient(circle at 20% 10%, #332066 0, transparent 35%),
-            radial-gradient(circle at 90% 90%, #122c55 0, transparent 35%),
-            #090b12;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 30px;
-    }
-
-    .app {
-        width: min(1050px, 100%);
-        background: rgba(18, 21, 32, .94);
-        border: 1px solid rgba(255,255,255,.08);
-        border-radius: 24px;
-        box-shadow:
-            0 30px 100px rgba(0,0,0,.55),
-            inset 0 1px 0 rgba(255,255,255,.04);
-        overflow: hidden;
+    .presets {
+        grid-template-columns: repeat(2,1fr);
     }
 
     header {
-        padding: 28px 32px 22px;
-        border-bottom: 1px solid rgba(255,255,255,.07);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 20px;
+        align-items: flex-start;
     }
 
-    .brand {
-        display: flex;
-        align-items: center;
-        gap: 14px;
+    main, header {
+        padding-left: 20px;
+        padding-right: 20px;
     }
-
-    .logo {
-        width: 48px;
-        height: 48px;
-        display: grid;
-        place-items: center;
-        border-radius: 14px;
-        background: linear-gradient(135deg, #8b5cf6, #4f46e5);
-        font-size: 24px;
-        box-shadow: 0 10px 30px rgba(99,102,241,.3);
-    }
-
-    h1 {
-        margin: 0;
-        font-size: 22px;
-        letter-spacing: -.5px;
-    }
-
-    .subtitle {
-        margin-top: 3px;
-        color: #858da5;
-        font-size: 13px;
-    }
-
-    .status {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: #858da5;
-        font-size: 13px;
-    }
-
-    .status-dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: #555b6f;
-    }
-
-    .status.active {
-        color: #86efac;
-    }
-
-    .status.active .status-dot {
-        background: #22c55e;
-        box-shadow: 0 0 12px #22c55e;
-    }
-
-    main {
-        padding: 28px 32px 32px;
-    }
-
-    .routing {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 22px;
-    }
-
-    .card {
-        background: rgba(255,255,255,.035);
-        border: 1px solid rgba(255,255,255,.06);
-        border-radius: 16px;
-        padding: 18px;
-    }
-
-    .label {
-        display: block;
-        margin-bottom: 8px;
-        color: #9299ad;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        font-weight: 700;
-    }
-
-    select {
-        width: 100%;
-        padding: 12px 14px;
-        color: #f5f7ff;
-        background: #111521;
-        border: 1px solid #2a3040;
-        border-radius: 10px;
-        outline: none;
-        font-size: 14px;
-    }
-
-    select:focus {
-        border-color: #6366f1;
-    }
-
-    .preset-row {
-        display: grid;
-        grid-template-columns: 1fr 180px;
-        gap: 16px;
-        margin-bottom: 22px;
-    }
-
-    .effects {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 16px;
-    }
-
-    .effect {
-        background: rgba(255,255,255,.035);
-        border: 1px solid rgba(255,255,255,.06);
-        border-radius: 16px;
-        padding: 18px;
-    }
-
-    .effect-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 13px;
-    }
-
-    .effect-name {
-        font-size: 14px;
-        font-weight: 700;
-    }
-
-    .value {
-        min-width: 54px;
-        text-align: right;
-        color: #a78bfa;
-        font-size: 13px;
-        font-variant-numeric: tabular-nums;
-    }
-
-    input[type="range"] {
-        appearance: none;
-        width: 100%;
-        height: 5px;
-        border-radius: 5px;
-        background: #292e3d;
-        outline: none;
-    }
-
-    input[type="range"]::-webkit-slider-thumb {
-        appearance: none;
-        width: 17px;
-        height: 17px;
-        border-radius: 50%;
-        background: #8b5cf6;
-        border: 3px solid #d9d0ff;
-        box-shadow: 0 0 12px rgba(139,92,246,.5);
-        cursor: pointer;
-    }
-
-    input[type="range"]::-moz-range-thumb {
-        width: 13px;
-        height: 13px;
-        border-radius: 50%;
-        background: #8b5cf6;
-        border: 3px solid #d9d0ff;
-        cursor: pointer;
-    }
-
-    .meter-card {
-        margin-top: 16px;
-        padding: 16px 18px;
-        background: rgba(255,255,255,.035);
-        border: 1px solid rgba(255,255,255,.06);
-        border-radius: 16px;
-    }
-
-    .meter {
-        height: 8px;
-        background: #171b27;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-    .meter-fill {
-        height: 100%;
-        width: 0%;
-        background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
-        transition: width .05s linear;
-    }
-
-    .controls {
-        margin-top: 22px;
-        display: flex;
-        gap: 12px;
-    }
-
-    button {
-        border: 0;
-        border-radius: 12px;
-        padding: 13px 22px;
-        color: white;
-        background: #272c3a;
-        font-weight: 750;
-        cursor: pointer;
-        transition: .18s ease;
-    }
-
-    button:hover {
-        transform: translateY(-1px);
-        background: #33394a;
-    }
-
-    #startBtn {
-        flex: 1;
-        background: linear-gradient(135deg, #7c3aed, #4f46e5);
-        box-shadow: 0 10px 25px rgba(79,70,229,.25);
-        font-size: 15px;
-    }
-
-    #startBtn.running {
-        background: linear-gradient(135deg, #dc2626, #991b1b);
-    }
-
-    .hint {
-        margin-top: 20px;
-        padding: 15px 17px;
-        border-radius: 12px;
-        background: rgba(99,102,241,.07);
-        border: 1px solid rgba(99,102,241,.15);
-        color: #aeb5c8;
-        line-height: 1.55;
-        font-size: 13px;
-    }
-
-    .hint strong {
-        color: #ddd6fe;
-    }
-
-    footer {
-        padding: 17px 32px;
-        border-top: 1px solid rgba(255,255,255,.06);
-        color: #62697d;
-        font-size: 12px;
-        text-align: center;
-    }
-
-    @media (max-width: 720px) {
-        .routing,
-        .effects,
-        .preset-row {
-            grid-template-columns: 1fr;
-        }
-
-        header {
-            align-items: flex-start;
-        }
-
-        main,
-        header {
-            padding-left: 20px;
-            padding-right: 20px;
-        }
-    }
+}
 </style>
+
 </head>
 
 <body>
@@ -317,320 +388,415 @@
         <div class="logo">🎙️</div>
         <div>
             <h1>VoiceForge</h1>
-            <div class="subtitle">Live microphone voice changer</div>
+            <div class="subtitle">Natural real-time voice processing</div>
         </div>
     </div>
 
-    <div id="status" class="status">
-        <span class="status-dot"></span>
-        <span id="statusText">Ready</span>
-    </div>
+```
+<div id="status" class="status">
+    <span class="status-dot"></span>
+    <span id="statusText">Ready</span>
+</div>
+```
+
 </header>
 
 <main>
 
-    <div class="routing">
+```
+<div class="grid">
 
-        <div class="card">
-            <span class="label">Microphone Input</span>
-            <select id="inputDevice">
-                <option value="">Default microphone</option>
-            </select>
+    <div class="card">
+        <span class="label">Microphone</span>
+        <select id="inputDevice">
+            <option value="">Default microphone</option>
+        </select>
+    </div>
+
+    <div class="card">
+        <span class="label">Voice Output</span>
+        <select id="outputDevice">
+            <option value="">Default output</option>
+        </select>
+    </div>
+
+</div>
+
+
+<div class="section">
+
+    <div class="section-title">Voice presets</div>
+
+    <div class="presets">
+
+        <button class="preset active" data-preset="natural">
+            Natural
+        </button>
+
+        <button class="preset" data-preset="deep">
+            Deep
+        </button>
+
+        <button class="preset" data-preset="feminine">
+            Higher
+        </button>
+
+        <button class="preset" data-preset="warm">
+            Warm
+        </button>
+
+        <button class="preset" data-preset="character">
+            Character
+        </button>
+
+        <button class="preset" data-preset="monster">
+            Monster
+        </button>
+
+        <button class="preset" data-preset="robot">
+            Robot
+        </button>
+
+        <button class="preset" data-preset="radio">
+            Radio
+        </button>
+
+    </div>
+
+</div>
+
+
+<div class="section controls-grid">
+
+    <div class="control">
+
+        <div class="control-head">
+            <span class="control-name">Pitch</span>
+            <span id="pitchValue" class="control-value">0.0 st</span>
         </div>
 
-        <div class="card">
-            <span class="label">Audio Output</span>
-            <select id="outputDevice">
-                <option value="">Default speakers</option>
-            </select>
+        <input
+            id="pitch"
+            type="range"
+            min="-6"
+            max="6"
+            step=".1"
+            value="0">
+
+    </div>
+
+
+    <div class="control">
+
+        <div class="control-head">
+            <span class="control-name">Formant / Voice Character</span>
+            <span id="formantValue" class="control-value">100%</span>
+        </div>
+
+        <input
+            id="formant"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value="100">
+
+    </div>
+
+
+    <div class="control">
+
+        <div class="control-head">
+            <span class="control-name">Tone</span>
+            <span id="toneValue" class="control-value">0</span>
+        </div>
+
+        <input
+            id="tone"
+            type="range"
+            min="-6"
+            max="6"
+            step=".1"
+            value="0">
+
+    </div>
+
+
+    <div class="control">
+
+        <div class="control-head">
+            <span class="control-name">Compression</span>
+            <span id="compressionValue" class="control-value">35%</span>
+        </div>
+
+        <input
+            id="compression"
+            type="range"
+            min="0"
+            max="100"
+            value="35">
+
+    </div>
+
+</div>
+
+
+<div class="section controls-grid">
+
+    <div class="control">
+
+        <div class="control-head">
+            <span class="control-name">Reverb</span>
+            <span id="reverbValue" class="control-value">OFF</span>
+        </div>
+
+        <input
+            id="reverb"
+            type="range"
+            min="0"
+            max="20"
+            value="0">
+
+    </div>
+
+
+    <div class="control">
+
+        <div class="control-head">
+            <span class="control-name">Distortion</span>
+            <span id="distortionValue" class="control-value">OFF</span>
+        </div>
+
+        <input
+            id="distortion"
+            type="range"
+            min="0"
+            max="15"
+            value="0">
+
+    </div>
+
+</div>
+
+
+<div class="section">
+
+    <div class="control">
+
+        <div class="control-head">
+            <span class="control-name">Monitoring</span>
+            <span class="control-value">OFF by default</span>
+        </div>
+
+        <div class="toggle-row">
+
+            <button
+                id="monitorOff"
+                class="toggle active">
+                Monitor OFF
+            </button>
+
+            <button
+                id="monitorOn"
+                class="toggle">
+                Monitor ON
+            </button>
+
         </div>
 
     </div>
 
-    <div class="preset-row">
+</div>
 
-        <div class="card">
-            <span class="label">Preset</span>
-            <select id="preset">
-                <option value="custom">Custom</option>
-                <option value="normal">Normal Voice</option>
-                <option value="deep">Deep Voice</option>
-                <option value="monster">Monster</option>
-                <option value="robot">Robot</option>
-                <option value="alien">Alien</option>
-                <option value="radio">Radio</option>
-                <option value="megaphone">Megaphone</option>
-            </select>
-        </div>
 
-        <div class="card">
-            <span class="label">Master Volume</span>
-            <input id="volume" type="range" min="0" max="150" value="100">
-            <div class="value" id="volumeValue">100%</div>
-        </div>
+<div class="meter-card">
 
+    <span class="label">Microphone level</span>
+
+    <div class="meter">
+        <div id="meterFill" class="meter-fill"></div>
     </div>
 
-    <div class="effects">
+</div>
 
-        <div class="effect">
-            <div class="effect-top">
-                <span class="effect-name">🎵 Pitch</span>
-                <span class="value" id="pitchValue">0 st</span>
-            </div>
-            <input id="pitch" type="range" min="-12" max="12" step=".1" value="0">
-        </div>
 
-        <div class="effect">
-            <div class="effect-top">
-                <span class="effect-name">🔊 Bass</span>
-                <span class="value" id="bassValue">0 dB</span>
-            </div>
-            <input id="bass" type="range" min="-15" max="15" step=".5" value="0">
-        </div>
+<div id="warning" class="warning"></div>
 
-        <div class="effect">
-            <div class="effect-top">
-                <span class="effect-name">✨ Treble</span>
-                <span class="value" id="trebleValue">0 dB</span>
-            </div>
-            <input id="treble" type="range" min="-15" max="15" step=".5" value="0">
-        </div>
 
-        <div class="effect">
-            <div class="effect-top">
-                <span class="effect-name">🤖 Distortion</span>
-                <span class="value" id="distortionValue">0%</span>
-            </div>
-            <input id="distortion" type="range" min="0" max="100" value="0">
-        </div>
+<div class="actions">
 
-        <div class="effect">
-            <div class="effect-top">
-                <span class="effect-name">🌫️ Echo</span>
-                <span class="value" id="echoValue">0%</span>
-            </div>
-            <input id="echo" type="range" min="0" max="80" value="0">
-        </div>
+    <button id="start">
+        🎙 START VOICE CHANGER
+    </button>
 
-        <div class="effect">
-            <div class="effect-top">
-                <span class="effect-name">🎚️ Compression</span>
-                <span class="value" id="compressionValue">50%</span>
-            </div>
-            <input id="compression" type="range" min="0" max="100" value="50">
-        </div>
+    <button id="refresh">
+        ↻ Devices
+    </button>
 
-    </div>
+</div>
 
-    <div class="meter-card">
-        <span class="label">Input Level</span>
-        <div class="meter">
-            <div id="meterFill" class="meter-fill"></div>
-        </div>
-    </div>
 
-    <div class="controls">
-        <button id="startBtn">🎙 START VOICE CHANGER</button>
-        <button id="refreshBtn">↻ Refresh Devices</button>
-    </div>
+<div class="info">
 
-    <div class="hint">
-        <strong>Discord setup:</strong>
-        Start the voice changer, select your virtual audio cable as the
-        output, then open Discord → Settings → Voice & Video and select
-        the virtual cable's <strong>recording/input device</strong> as Discord's microphone.
-        Use headphones to prevent feedback.
-    </div>
+    <strong>Discord routing:</strong>
+    choose your physical microphone above, then choose
+    <strong>CABLE Input (VB-Audio Virtual Cable)</strong> as the
+    Voice Output. In Discord, select
+    <strong>CABLE Output (VB-Audio Virtual Cable)</strong>
+    as your microphone/input device.
+
+    <br><br>
+
+    Monitoring is deliberately <strong>OFF</strong> by default.
+    This prevents the processed signal from coming back through
+    your speakers and causing feedback.
+
+</div>
+```
 
 </main>
 
 <footer>
-    VoiceForge • Web Audio API • Best experienced in Chrome or Edge
+    VoiceForge • Natural speech mode • AudioWorklet processing
 </footer>
 
 </div>
 
 <script>
-let audioContext = null;
+
+/*
+    VoiceForge
+    ----------
+    Uses the SoundTouchJS formant-correction AudioWorklet.
+
+    Processor:
+    @soundtouchjs/formant-correction-worklet 2.1.0
+
+    The processor performs pitch shifting with LPC-based
+    formant preservation, which is specifically intended
+    for vocals and speech.
+*/
+
+
+const PROCESSOR_URL =
+    "https://cdn.jsdelivr.net/npm/@soundtouchjs/formant-correction-worklet@2.1.0/.dist/formant-correction-processor.js";
+
+
+let ctx = null;
 let micStream = null;
 let source = null;
-
 let pitchNode = null;
-let bassFilter = null;
-let trebleFilter = null;
-let distortionNode = null;
+
+let inputGain = null;
+let bass = null;
+let treble = null;
 let compressor = null;
-let echoNode = null;
-let echoFeedback = null;
-let masterGain = null;
+let distortion = null;
+let master = null;
 let analyser = null;
+
+let outputDestination = null;
+let outputAudio = null;
+let monitorGain = null;
 
 let running = false;
 
 
 /* ---------------------------------------------------------
-   INLINE PITCH SHIFTER
-   --------------------------------------------------------- */
+   DOM
+--------------------------------------------------------- */
 
-const pitchWorkletCode = `
-
-class PitchShifter extends AudioWorkletProcessor {
-
-    constructor() {
-        super();
-
-        this.bufferSize = 32768;
-        this.buffer = new Float32Array(this.bufferSize);
-
-        this.write = 0;
-        this.phase = 0;
-
-        this.pitch = 1;
-
-        this.port.onmessage = event => {
-            if (event.data.pitch) {
-                this.pitch = event.data.pitch;
-            }
-        };
-    }
-
-    process(inputs, outputs) {
-
-        const input = inputs[0];
-        const output = outputs[0];
-
-        if (!input.length) return true;
-
-        const inChannel = input[0];
-
-        for (let i = 0; i < inChannel.length; i++) {
-
-            this.buffer[this.write] = inChannel[i];
-
-            const delayMin = 400;
-            const delayMax = 9000;
-
-            this.phase += (this.pitch - 1) * 0.00055;
-
-            if (this.phase > 1) this.phase -= 1;
-            if (this.phase < 0) this.phase += 1;
-
-            const d1 = delayMin +
-                this.phase * (delayMax - delayMin);
-
-            const d2 = delayMin +
-                ((this.phase + 0.5) % 1) * (delayMax - delayMin);
-
-            const r1 = (this.write - d1 + this.bufferSize) %
-                this.bufferSize;
-
-            const r2 = (this.write - d2 + this.bufferSize) %
-                this.bufferSize;
-
-            const i1 = Math.floor(r1);
-            const i2 = Math.floor(r2);
-
-            const f1 = r1 - i1;
-            const f2 = r2 - i2;
-
-            const s1 =
-                this.buffer[i1] * (1 - f1) +
-                this.buffer[(i1 + 1) % this.bufferSize] * f1;
-
-            const s2 =
-                this.buffer[i2] * (1 - f2) +
-                this.buffer[(i2 + 1) % this.bufferSize] * f2;
-
-            const mix = Math.sin(this.phase * Math.PI);
-            const sample = s1 * (1 - mix) + s2 * mix;
-
-            for (let ch = 0; ch < output.length; ch++) {
-                output[ch][i] = sample;
-            }
-
-            this.write++;
-
-            if (this.write >= this.bufferSize) {
-                this.write = 0;
-            }
-        }
-
-        return true;
-    }
-}
-
-registerProcessor('voiceforge-pitch', PitchShifter);
-`;
+const $ = id => document.getElementById(id);
 
 
 /* ---------------------------------------------------------
-   HELPERS
-   --------------------------------------------------------- */
+   STATUS
+--------------------------------------------------------- */
 
-function $(id) {
-    return document.getElementById(id);
-}
+function status(text, live = false) {
 
-function setStatus(text, active = false) {
     $("statusText").textContent = text;
-    $("status").classList.toggle("active", active);
-}
+    $("status").classList.toggle("live", live);
 
-function distortionCurve(amount) {
-
-    const samples = 44100;
-    const curve = new Float32Array(samples);
-
-    const k = amount * 100;
-
-    for (let i = 0; i < samples; i++) {
-
-        const x = i * 2 / samples - 1;
-
-        if (k === 0) {
-            curve[i] = x;
-        } else {
-            curve[i] =
-                ((3 + k) * x * 20 * Math.PI / 180) /
-                (Math.PI + k * Math.abs(x));
-        }
-    }
-
-    return curve;
 }
 
 
 /* ---------------------------------------------------------
-   DEVICE ENUMERATION
-   --------------------------------------------------------- */
+   DEVICE LIST
+--------------------------------------------------------- */
 
-async function loadDevices() {
+async function refreshDevices() {
+
+    if (!navigator.mediaDevices) {
+
+        alert(
+            "This browser does not expose microphone devices."
+        );
+
+        return;
+    }
 
     try {
+
+        /*
+            Device labels are hidden until microphone permission
+            has been granted, so we request permission once when
+            necessary.
+        */
+
+        if (!micStream) {
+
+            try {
+
+                const temp =
+                    await navigator.mediaDevices.getUserMedia({
+                        audio: true
+                    });
+
+                temp.getTracks().forEach(t => t.stop());
+
+            } catch (e) {
+
+                console.warn(e);
+
+            }
+        }
+
 
         const devices =
             await navigator.mediaDevices.enumerateDevices();
 
-        const input = $("inputDevice");
-        const output = $("outputDevice");
 
-        const oldInput = input.value;
-        const oldOutput = output.value;
+        const input =
+            $("inputDevice");
+
+        const output =
+            $("outputDevice");
+
+
+        const oldInput =
+            input.value;
+
+        const oldOutput =
+            output.value;
+
 
         input.innerHTML =
             '<option value="">Default microphone</option>';
 
         output.innerHTML =
-            '<option value="">Default speakers</option>';
+            '<option value="">Default output</option>';
 
-        devices.forEach(device => {
+
+        for (const device of devices) {
 
             if (device.kind === "audioinput") {
 
-                const option = document.createElement("option");
+                const option =
+                    document.createElement("option");
 
-                option.value = device.deviceId;
+                option.value =
+                    device.deviceId;
 
                 option.textContent =
                     device.label ||
@@ -639,11 +805,14 @@ async function loadDevices() {
                 input.appendChild(option);
             }
 
+
             if (device.kind === "audiooutput") {
 
-                const option = document.createElement("option");
+                const option =
+                    document.createElement("option");
 
-                option.value = device.deviceId;
+                option.value =
+                    device.deviceId;
 
                 option.textContent =
                     device.label ||
@@ -651,79 +820,180 @@ async function loadDevices() {
 
                 output.appendChild(option);
             }
-        });
+        }
 
-        if ([...input.options].some(x => x.value === oldInput))
+
+        if (
+            [...input.options]
+                .some(o => o.value === oldInput)
+        ) {
+
             input.value = oldInput;
 
-        if ([...output.options].some(x => x.value === oldOutput))
+        }
+
+
+        if (
+            [...output.options]
+                .some(o => o.value === oldOutput)
+        ) {
+
             output.value = oldOutput;
 
-    } catch (err) {
-        console.error(err);
+        }
+
+    } catch (error) {
+
+        console.error(error);
+
     }
+
+}
+
+
+/* ---------------------------------------------------------
+   DISTORTION
+--------------------------------------------------------- */
+
+function makeDistortion(amount) {
+
+    const samples = 44100;
+
+    const curve =
+        new Float32Array(samples);
+
+    if (amount <= 0) {
+
+        for (let i = 0; i < samples; i++) {
+
+            curve[i] =
+                i * 2 / samples - 1;
+
+        }
+
+        return curve;
+    }
+
+
+    /*
+        Very conservative soft saturation.
+
+        This is deliberately much gentler than the previous
+        version.
+    */
+
+    const drive =
+        1 + amount * 2.0;
+
+
+    for (let i = 0; i < samples; i++) {
+
+        const x =
+            i * 2 / samples - 1;
+
+        curve[i] =
+            Math.tanh(x * drive) /
+            Math.tanh(drive);
+
+    }
+
+    return curve;
+
 }
 
 
 /* ---------------------------------------------------------
    START
-   --------------------------------------------------------- */
+--------------------------------------------------------- */
 
-async function startVoiceChanger() {
+async function start() {
 
     if (running) {
-        stopVoiceChanger();
+
+        stop();
+
         return;
+
     }
+
 
     try {
 
-        setStatus("Requesting microphone…");
+        status("Requesting microphone…");
 
-        const deviceId = $("inputDevice").value;
+
+        const selectedInput =
+            $("inputDevice").value;
+
 
         const constraints = {
+
             audio: {
-                deviceId: deviceId
-                    ? { exact: deviceId }
-                    : undefined,
+
+                deviceId:
+                    selectedInput
+                        ? { exact: selectedInput }
+                        : undefined,
+
+                channelCount: 1,
+
+                /*
+                    Browser processing is disabled because
+                    VoiceForge is doing the processing itself.
+                */
 
                 echoCancellation: false,
                 noiseSuppression: false,
                 autoGainControl: false
+
             }
+
         };
 
+
         micStream =
-            await navigator.mediaDevices.getUserMedia(constraints);
+            await navigator.mediaDevices
+                .getUserMedia(constraints);
 
-        audioContext =
-            new (window.AudioContext ||
-                 window.webkitAudioContext)();
 
-        await audioContext.resume();
+        ctx =
+            new (
+                window.AudioContext ||
+                window.webkitAudioContext
+            )();
+
+
+        await ctx.resume();
+
+
+        /*
+            Microphone
+        */
 
         source =
-            audioContext.createMediaStreamSource(micStream);
+            ctx.createMediaStreamSource(
+                micStream
+            );
 
 
-        /* Pitch worklet */
+        /*
+            Formant-corrected pitch processor.
 
-        const blob =
-            new Blob([pitchWorkletCode],
-                { type: "application/javascript" });
+            We load the processor directly into the worklet.
+        */
 
-        const workletURL =
-            URL.createObjectURL(blob);
+        status("Loading voice engine…");
 
-        await audioContext.audioWorklet.addModule(workletURL);
 
-        URL.revokeObjectURL(workletURL);
+        await ctx.audioWorklet.addModule(
+            PROCESSOR_URL
+        );
+
 
         pitchNode =
             new AudioWorkletNode(
-                audioContext,
-                "voiceforge-pitch",
+                ctx,
+                "formant-correction-processor",
                 {
                     numberOfInputs: 1,
                     numberOfOutputs: 1,
@@ -732,404 +1002,774 @@ async function startVoiceChanger() {
             );
 
 
-        /* Filters */
+        /*
+            Input gain
+        */
 
-        bassFilter =
-            audioContext.createBiquadFilter();
+        inputGain =
+            ctx.createGain();
 
-        bassFilter.type = "lowshelf";
-        bassFilter.frequency.value = 180;
-
-
-        trebleFilter =
-            audioContext.createBiquadFilter();
-
-        trebleFilter.type = "highshelf";
-        trebleFilter.frequency.value = 3500;
+        inputGain.gain.value =
+            1.0;
 
 
-        /* Distortion */
+        /*
+            Bass
+        */
 
-        distortionNode =
-            audioContext.createWaveShaper();
+        bass =
+            ctx.createBiquadFilter();
 
-        distortionNode.oversample = "4x";
+        bass.type =
+            "lowshelf";
+
+        bass.frequency.value =
+            160;
+
+        bass.gain.value =
+            0;
 
 
-        /* Compressor */
+        /*
+            Treble
+        */
+
+        treble =
+            ctx.createBiquadFilter();
+
+        treble.type =
+            "highshelf";
+
+        treble.frequency.value =
+            4200;
+
+        treble.gain.value =
+            0;
+
+
+        /*
+            Gentle compressor.
+
+            Default settings are deliberately mild.
+        */
 
         compressor =
-            audioContext.createDynamicsCompressor();
+            ctx.createDynamicsCompressor();
 
-        compressor.threshold.value = -24;
-        compressor.knee.value = 20;
-        compressor.ratio.value = 4;
-        compressor.attack.value = .003;
-        compressor.release.value = .25;
+        compressor.threshold.value =
+            -18;
 
+        compressor.knee.value =
+            18;
 
-        /* Echo */
+        compressor.ratio.value =
+            2.2;
 
-        echoNode =
-            audioContext.createDelay(1.0);
+        compressor.attack.value =
+            0.008;
 
-        echoNode.delayTime.value = .18;
-
-        echoFeedback =
-            audioContext.createGain();
-
-        echoFeedback.gain.value = 0;
+        compressor.release.value =
+            0.12;
 
 
-        /* Master */
+        /*
+            Soft saturation.
+        */
 
-        masterGain =
-            audioContext.createGain();
+        distortion =
+            ctx.createWaveShaper();
 
-        masterGain.gain.value =
-            Number($("volume").value) / 100;
+        distortion.oversample =
+            "4x";
+
+        distortion.curve =
+            makeDistortion(0);
 
 
-        /* Analyzer */
+        /*
+            Final level.
+        */
+
+        master =
+            ctx.createGain();
+
+        master.gain.value =
+            0.82;
+
+
+        /*
+            Meter.
+        */
 
         analyser =
-            audioContext.createAnalyser();
+            ctx.createAnalyser();
 
-        analyser.fftSize = 256;
-
-
-        /*
-         * AUDIO CHAIN
-         *
-         * Microphone
-         *     ↓
-         * Pitch
-         *     ↓
-         * Bass
-         *     ↓
-         * Treble
-         *     ↓
-         * Distortion
-         *     ↓
-         * Compressor
-         *     ↓
-         * Echo
-         *     ↓
-         * Master
-         *     ↓
-         * Output device / VB-CABLE
-         */
-
-        source.connect(pitchNode);
-
-        pitchNode.connect(bassFilter);
-
-        bassFilter.connect(trebleFilter);
-
-        trebleFilter.connect(distortionNode);
-
-        distortionNode.connect(compressor);
-
-        compressor.connect(masterGain);
-
-        compressor.connect(echoNode);
-
-        echoNode.connect(echoFeedback);
-
-        echoFeedback.connect(echoNode);
-
-        echoNode.connect(masterGain);
-
-        masterGain.connect(analyser);
+        analyser.fftSize =
+            512;
 
 
         /*
-         * Select output device.
-         */
+            MAIN PROCESSING CHAIN
+
+            Mic
+             ↓
+            Gain
+             ↓
+            Pitch/Formant
+             ↓
+            Bass
+             ↓
+            Treble
+             ↓
+            Compressor
+             ↓
+            Soft Saturation
+             ↓
+            Master
+        */
+
+        source.connect(inputGain);
+
+        inputGain.connect(pitchNode);
+
+        pitchNode.connect(bass);
+
+        bass.connect(treble);
+
+        treble.connect(compressor);
+
+        compressor.connect(distortion);
+
+        distortion.connect(master);
+
+        master.connect(analyser);
+
+
+        /*
+            Create a MediaStreamDestination.
+
+            Instead of relying on the browser's speakers,
+            this gives us an audio stream which can be sent
+            to a hidden <audio> element.
+
+            The <audio> element supports setSinkId(), which
+            lets us select VB-CABLE as the physical output.
+        */
+
+        outputDestination =
+            ctx.createMediaStreamDestination();
+
+
+        master.connect(
+            outputDestination
+        );
+
+
+        outputAudio =
+            document.createElement("audio");
+
+        outputAudio.autoplay =
+            true;
+
+        outputAudio.muted =
+            false;
+
+        outputAudio.volume =
+            1;
+
+        outputAudio.srcObject =
+            outputDestination.stream;
+
+
+        document.body.appendChild(
+            outputAudio
+        );
+
+
+        /*
+            Select output device.
+        */
+
+        const selectedOutput =
+            $("outputDevice").value;
+
 
         if (
-            $("outputDevice").value &&
-            typeof audioContext.setSinkId === "function"
+            selectedOutput &&
+            typeof outputAudio.setSinkId === "function"
         ) {
 
-            await audioContext.setSinkId({
-                type: "device",
-                deviceId: $("outputDevice").value
-            });
+            await outputAudio.setSinkId(
+                selectedOutput
+            );
 
         }
 
 
-        masterGain.connect(audioContext.destination);
+        /*
+            Separate local monitoring path.
+
+            It is OFF by default.
+        */
+
+        monitorGain =
+            ctx.createGain();
+
+        monitorGain.gain.value =
+            0;
+
+        master.connect(
+            monitorGain
+        );
+
+        monitorGain.connect(
+            ctx.destination
+        );
+
+
+        await outputAudio.play();
 
 
         running = true;
 
-        $("startBtn").textContent =
+
+        $("start").textContent =
             "■ STOP VOICE CHANGER";
 
-        $("startBtn").classList.add("running");
-
-        setStatus("Voice changer active", true);
-
-        updateAllEffects();
-
-        drawMeter();
-
-    } catch (err) {
-
-        console.error(err);
-
-        alert(
-            "Could not start the voice changer.\n\n" +
-            err.message
+        $("start").classList.add(
+            "running"
         );
 
-        stopVoiceChanger();
+
+        status(
+            "Voice changer active",
+            true
+        );
+
+
+        updateEffects();
+
+        updateMeter();
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        showWarning(
+            "Voice changer could not start: " +
+            error.message
+        );
+
+        stop();
+
     }
+
 }
 
 
 /* ---------------------------------------------------------
    STOP
-   --------------------------------------------------------- */
+--------------------------------------------------------- */
 
-function stopVoiceChanger() {
+function stop() {
 
     running = false;
 
+
     if (micStream) {
 
-        micStream.getTracks().forEach(track =>
-            track.stop()
-        );
+        micStream
+            .getTracks()
+            .forEach(track =>
+                track.stop()
+            );
 
         micStream = null;
+
     }
 
-    if (audioContext) {
 
-        audioContext.close();
+    if (outputAudio) {
 
-        audioContext = null;
+        outputAudio.pause();
+
+        outputAudio.srcObject =
+            null;
+
+        outputAudio.remove();
+
+        outputAudio = null;
+
     }
+
+
+    if (ctx) {
+
+        ctx.close();
+
+        ctx = null;
+
+    }
+
 
     source = null;
     pitchNode = null;
-    bassFilter = null;
-    trebleFilter = null;
-    distortionNode = null;
+    inputGain = null;
+    bass = null;
+    treble = null;
     compressor = null;
-    echoNode = null;
-    echoFeedback = null;
-    masterGain = null;
+    distortion = null;
+    master = null;
     analyser = null;
+    monitorGain = null;
+    outputDestination = null;
 
-    $("startBtn").textContent =
+
+    $("start").textContent =
         "🎙 START VOICE CHANGER";
 
-    $("startBtn").classList.remove("running");
+    $("start").classList.remove(
+        "running"
+    );
 
-    setStatus("Ready");
+
+    $("meterFill").style.width =
+        "0%";
+
+
+    status("Ready");
+
 }
 
 
 /* ---------------------------------------------------------
-   EFFECT CONTROLS
-   --------------------------------------------------------- */
+   EFFECT PARAMETERS
+--------------------------------------------------------- */
 
-function updateAllEffects() {
+function updateEffects() {
 
-    if (!audioContext || !running) return;
+    updateLabels();
+
+
+    if (!running || !ctx)
+        return;
+
+
+    /*
+        Pitch.
+
+        The range is intentionally limited to ±6 semitones.
+    */
 
     const pitch =
         Number($("pitch").value);
 
-    const ratio =
-        Math.pow(2, pitch / 12);
 
-    pitchNode.port.postMessage({
-        pitch: ratio
-    });
+    if (pitchNode) {
 
-    bassFilter.gain.value =
-        Number($("bass").value);
+        const parameter =
+            pitchNode.parameters
+                .get("pitchSemitones");
 
-    trebleFilter.gain.value =
-        Number($("treble").value);
 
-    const distortion =
-        Number($("distortion").value) / 100;
+        if (parameter) {
 
-    distortionNode.curve =
-        distortionCurve(distortion);
+            parameter.setValueAtTime(
+                pitch,
+                ctx.currentTime
+            );
 
-    echoFeedback.gain.value =
-        Number($("echo").value) / 100;
+        }
 
-    masterGain.gain.value =
-        Number($("volume").value) / 100;
 
-    const compression =
-        Number($("compression").value);
+        /*
+            Full formant correction is the natural default.
+        */
+
+        const formant =
+            Number($("formant").value) / 100;
+
+
+        const formantParameter =
+            pitchNode.parameters
+                .get("formantStrength");
+
+
+        if (formantParameter) {
+
+            formantParameter.setValueAtTime(
+                formant,
+                ctx.currentTime
+            );
+
+        }
+
+    }
+
 
     /*
-     * 0% = relatively gentle compression
-     * 100% = strong compression
-     */
+        Tone.
 
-    compressor.ratio.value =
-        1.5 + compression / 100 * 10;
+        +/- 6 dB is intentionally conservative.
+    */
 
-    compressor.threshold.value =
-        -12 - compression / 100 * 28;
+    const tone =
+        Number($("tone").value);
+
+
+    if (bass)
+        bass.gain.setTargetAtTime(
+            tone * .55,
+            ctx.currentTime,
+            .015
+        );
+
+
+    if (treble)
+        treble.gain.setTargetAtTime(
+            tone * .45,
+            ctx.currentTime,
+            .015
+        );
+
+
+    /*
+        Compression.
+
+        0% = gentle
+        100% = stronger, but still not smashed
+    */
+
+    const compression =
+        Number($("compression").value) / 100;
+
+
+    if (compressor) {
+
+        compressor.threshold.value =
+            -14 - compression * 18;
+
+        compressor.ratio.value =
+            1.5 + compression * 3.0;
+
+    }
+
+
+    /*
+        Distortion is deliberately tiny.
+    */
+
+    const distortionAmount =
+        Number($("distortion").value);
+
+
+    if (distortion) {
+
+        distortion.curve =
+            makeDistortion(
+                distortionAmount / 100
+            );
+
+    }
+
+
+    /*
+        Reverb is implemented as a very small
+        feedback delay.
+
+        Default = ZERO.
+
+        It is not part of any natural preset.
+    */
+
+    updateReverb();
+
 }
 
 
 /* ---------------------------------------------------------
-   DISPLAY VALUES
-   --------------------------------------------------------- */
+   REVERB
+--------------------------------------------------------- */
+
+let reverbDelay = null;
+let reverbFeedback = null;
+let reverbWet = null;
+
+
+function setupReverb() {
+
+    if (!ctx || reverbDelay)
+        return;
+
+
+    reverbDelay =
+        ctx.createDelay(1.0);
+
+    reverbFeedback =
+        ctx.createGain();
+
+    reverbWet =
+        ctx.createGain();
+
+
+    reverbDelay.delayTime.value =
+        .075;
+
+    reverbFeedback.gain.value =
+        0;
+
+    reverbWet.gain.value =
+        0;
+
+
+    master.connect(
+        reverbDelay
+    );
+
+    reverbDelay.connect(
+        reverbFeedback
+    );
+
+    reverbFeedback.connect(
+        reverbDelay
+    );
+
+    reverbDelay.connect(
+        reverbWet
+    );
+
+    reverbWet.connect(
+        master
+    );
+
+}
+
+
+function updateReverb() {
+
+    if (!ctx || !master)
+        return;
+
+
+    setupReverb();
+
+
+    const amount =
+        Number($("reverb").value) / 100;
+
+
+    reverbFeedback.gain.setTargetAtTime(
+        amount * .22,
+        ctx.currentTime,
+        .02
+    );
+
+
+    reverbWet.gain.setTargetAtTime(
+        amount * .18,
+        ctx.currentTime,
+        .02
+    );
+
+}
+
+
+/* ---------------------------------------------------------
+   LABELS
+--------------------------------------------------------- */
 
 function updateLabels() {
 
     $("pitchValue").textContent =
-        Number($("pitch").value).toFixed(1) + " st";
+        Number($("pitch").value)
+            .toFixed(1) + " st";
 
-    $("bassValue").textContent =
-        Number($("bass").value).toFixed(1) + " dB";
 
-    $("trebleValue").textContent =
-        Number($("treble").value).toFixed(1) + " dB";
+    $("formantValue").textContent =
+        $("formant").value + "%";
 
-    $("distortionValue").textContent =
-        $("distortion").value + "%";
 
-    $("echoValue").textContent =
-        $("echo").value + "%";
+    $("toneValue").textContent =
+        Number($("tone").value)
+            .toFixed(1);
+
 
     $("compressionValue").textContent =
         $("compression").value + "%";
 
-    $("volumeValue").textContent =
-        $("volume").value + "%";
+
+    const reverb =
+        Number($("reverb").value);
+
+
+    $("reverbValue").textContent =
+        reverb === 0
+            ? "OFF"
+            : reverb + "%";
+
+
+    const distortion =
+        Number($("distortion").value);
+
+
+    $("distortionValue").textContent =
+        distortion === 0
+            ? "OFF"
+            : distortion + "%";
+
 }
 
 
 /* ---------------------------------------------------------
    METER
-   --------------------------------------------------------- */
+--------------------------------------------------------- */
 
-function drawMeter() {
+function updateMeter() {
 
-    if (!running || !analyser) {
-
-        $("meterFill").style.width = "0%";
-
+    if (!running || !analyser)
         return;
-    }
+
 
     const data =
-        new Uint8Array(analyser.fftSize);
+        new Uint8Array(
+            analyser.fftSize
+        );
 
-    analyser.getByteTimeDomainData(data);
+
+    analyser.getByteTimeDomainData(
+        data
+    );
+
 
     let sum = 0;
 
+
     for (let i = 0; i < data.length; i++) {
 
-        const value =
+        const sample =
             (data[i] - 128) / 128;
 
-        sum += value * value;
+        sum += sample * sample;
+
     }
 
+
     const rms =
-        Math.sqrt(sum / data.length);
+        Math.sqrt(
+            sum / data.length
+        );
+
 
     const level =
-        Math.min(100, rms * 220);
+        Math.min(
+            100,
+            rms * 240
+        );
+
 
     $("meterFill").style.width =
         level + "%";
 
-    requestAnimationFrame(drawMeter);
+
+    requestAnimationFrame(
+        updateMeter
+    );
+
 }
 
 
 /* ---------------------------------------------------------
    PRESETS
-   --------------------------------------------------------- */
+--------------------------------------------------------- */
 
 const presets = {
 
-    normal: {
+    /*
+        IMPORTANT:
+        Natural = essentially clean speech.
+        No echo.
+        No distortion.
+        Full formant correction.
+    */
+
+    natural: {
         pitch: 0,
-        bass: 0,
-        treble: 0,
-        distortion: 0,
-        echo: 0,
-        compression: 50,
-        volume: 100
+        formant: 100,
+        tone: 0,
+        compression: 35,
+        reverb: 0,
+        distortion: 0
     },
+
 
     deep: {
-        pitch: -5,
-        bass: 7,
-        treble: -2,
-        distortion: 0,
-        echo: 5,
-        compression: 65,
-        volume: 100
+        pitch: -2.4,
+        formant: 100,
+        tone: 1.8,
+        compression: 38,
+        reverb: 0,
+        distortion: 0
     },
+
+
+    feminine: {
+        pitch: 2.2,
+        formant: 100,
+        tone: 1.2,
+        compression: 34,
+        reverb: 0,
+        distortion: 0
+    },
+
+
+    warm: {
+        pitch: -.7,
+        formant: 100,
+        tone: -1.8,
+        compression: 42,
+        reverb: 0,
+        distortion: 0
+    },
+
+
+    character: {
+        pitch: 3.5,
+        formant: 78,
+        tone: 2,
+        compression: 42,
+        reverb: 2,
+        distortion: 2
+    },
+
 
     monster: {
-        pitch: -10,
-        bass: 10,
-        treble: -5,
-        distortion: 28,
-        echo: 15,
-        compression: 80,
-        volume: 95
+        pitch: -5,
+        formant: 70,
+        tone: -1,
+        compression: 55,
+        reverb: 4,
+        distortion: 4
     },
+
 
     robot: {
-        pitch: -2,
-        bass: 2,
-        treble: 7,
-        distortion: 45,
-        echo: 8,
-        compression: 90,
-        volume: 90
+        pitch: 0,
+        formant: 60,
+        tone: 3,
+        compression: 70,
+        reverb: 3,
+        distortion: 6
     },
 
-    alien: {
-        pitch: 7,
-        bass: -4,
-        treble: 8,
-        distortion: 20,
-        echo: 30,
-        compression: 65,
-        volume: 90
-    },
 
     radio: {
         pitch: 0,
-        bass: -12,
-        treble: 9,
-        distortion: 12,
-        echo: 3,
-        compression: 95,
-        volume: 100
-    },
-
-    megaphone: {
-        pitch: -1,
-        bass: -10,
-        treble: 10,
-        distortion: 18,
-        echo: 5,
-        compression: 100,
-        volume: 85
+        formant: 100,
+        tone: 2.5,
+        compression: 75,
+        reverb: 0,
+        distortion: 2
     }
 
 };
@@ -1137,113 +1777,240 @@ const presets = {
 
 function applyPreset(name) {
 
-    if (!presets[name]) return;
+    const preset =
+        presets[name];
 
-    const p = presets[name];
+    if (!preset)
+        return;
 
-    $("pitch").value = p.pitch;
-    $("bass").value = p.bass;
-    $("treble").value = p.treble;
-    $("distortion").value = p.distortion;
-    $("echo").value = p.echo;
-    $("compression").value = p.compression;
-    $("volume").value = p.volume;
 
-    updateLabels();
-    updateAllEffects();
+    $("pitch").value =
+        preset.pitch;
+
+    $("formant").value =
+        preset.formant;
+
+    $("tone").value =
+        preset.tone;
+
+    $("compression").value =
+        preset.compression;
+
+    $("reverb").value =
+        preset.reverb;
+
+    $("distortion").value =
+        preset.distortion;
+
+
+    document
+        .querySelectorAll(".preset")
+        .forEach(button => {
+
+            button.classList.toggle(
+                "active",
+                button.dataset.preset === name
+            );
+
+        });
+
+
+    updateEffects();
+
+}
+
+
+/* ---------------------------------------------------------
+   MONITORING
+--------------------------------------------------------- */
+
+function setMonitoring(enabled) {
+
+    $("monitorOff")
+        .classList.toggle(
+            "active",
+            !enabled
+        );
+
+
+    $("monitorOn")
+        .classList.toggle(
+            "active",
+            enabled
+        );
+
+
+    if (monitorGain && ctx) {
+
+        monitorGain.gain.setTargetAtTime(
+            enabled ? .65 : 0,
+            ctx.currentTime,
+            .02
+        );
+
+    }
+
+}
+
+
+$("monitorOff")
+    .addEventListener(
+        "click",
+        () => setMonitoring(false)
+    );
+
+
+$("monitorOn")
+    .addEventListener(
+        "click",
+        () => setMonitoring(true)
+    );
+
+
+/* ---------------------------------------------------------
+   WARNING
+--------------------------------------------------------- */
+
+function showWarning(message) {
+
+    const warning =
+        $("warning");
+
+    warning.textContent =
+        message;
+
+    warning.style.display =
+        "block";
+
 }
 
 
 /* ---------------------------------------------------------
    EVENTS
-   --------------------------------------------------------- */
+--------------------------------------------------------- */
 
-[
-    "pitch",
-    "bass",
-    "treble",
-    "distortion",
-    "echo",
-    "compression",
-    "volume"
-].forEach(id => {
+$("start")
+    .addEventListener(
+        "click",
+        () => {
 
-    $(id).addEventListener("input", () => {
+            if (running)
+                stop();
+            else
+                start();
 
-        $("preset").value = "custom";
+        }
+    );
 
-        updateLabels();
-        updateAllEffects();
+
+$("refresh")
+    .addEventListener(
+        "click",
+        refreshDevices
+    );
+
+
+document
+    .querySelectorAll(
+        'input[type="range"]'
+    )
+    .forEach(input => {
+
+        input.addEventListener(
+            "input",
+            () => {
+
+                /*
+                    Manual adjustment removes
+                    the visual preset selection.
+                */
+
+                document
+                    .querySelectorAll(".preset")
+                    .forEach(button =>
+                        button.classList.remove(
+                            "active"
+                        )
+                    );
+
+
+                updateEffects();
+
+            }
+        );
+
     });
 
-});
+
+document
+    .querySelectorAll(".preset")
+    .forEach(button => {
+
+        button.addEventListener(
+            "click",
+            () => {
+
+                applyPreset(
+                    button.dataset.preset
+                );
+
+            }
+        );
+
+    });
 
 
-$("preset").addEventListener("change", () => {
+$("outputDevice")
+    .addEventListener(
+        "change",
+        async () => {
 
-    applyPreset($("preset").value);
-
-});
-
-
-$("startBtn").addEventListener("click", async () => {
-
-    if (running) {
-        stopVoiceChanger();
-    } else {
-        await startVoiceChanger();
-    }
-
-});
+            if (
+                !outputAudio ||
+                !outputAudio.setSinkId
+            )
+                return;
 
 
-$("refreshBtn").addEventListener("click", async () => {
+            try {
 
-    await loadDevices();
+                await outputAudio.setSinkId(
+                    $("outputDevice").value
+                );
 
-});
+            } catch (error) {
 
+                console.error(error);
 
-$("outputDevice").addEventListener("change", async () => {
+                showWarning(
+                    "This browser could not switch the output device."
+                );
 
-    if (
-        running &&
-        audioContext &&
-        typeof audioContext.setSinkId === "function"
-    ) {
+            }
 
-        try {
-
-            await audioContext.setSinkId({
-                type: "device",
-                deviceId: $("outputDevice").value
-            });
-
-        } catch (err) {
-
-            console.error(err);
-
-            alert(
-                "This browser could not change the audio output device."
-            );
         }
-    }
+    );
 
-});
+
+if (navigator.mediaDevices) {
+
+    navigator.mediaDevices.addEventListener(
+        "devicechange",
+        refreshDevices
+    );
+
+}
 
 
 /* ---------------------------------------------------------
-   INITIALIZATION
-   --------------------------------------------------------- */
+   INITIAL STATE
+--------------------------------------------------------- */
 
 updateLabels();
 
-navigator.mediaDevices?.addEventListener(
-    "devicechange",
-    loadDevices
-);
+refreshDevices();
 
-loadDevices();
+setMonitoring(false);
 
 </script>
 
