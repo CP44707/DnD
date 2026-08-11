@@ -51,10 +51,20 @@
     const enableButton = document.getElementById("enableAudio");
 
 
-    // Audio must receive user interaction in many browsers.
+    // --------------------------------------------------
+    // AUDIO
+    // --------------------------------------------------
+
     let audioEnabled = false;
 
+    let musicAudio = null;
 
+    let currentMusicFile = null;
+
+    let repeatMusic = false;
+
+
+    // Enable audio after user interaction
     enableButton.onclick = () => {
 
       audioEnabled = true;
@@ -69,66 +79,61 @@
     };
 
 
-    // Load Supabase keys
+    // --------------------------------------------------
+    // SUPABASE
+    // --------------------------------------------------
+
     const keys = await fetch("keys.json").then(r => r.json());
 
 
-    // Create Supabase client
     const supabase = createClient(
       keys.supabaseUrl,
       keys.supabaseKey
     );
 
 
-    // IMPORTANT:
-    // This MUST match the host.
     const channel = supabase.channel("soundboard");
 
 
-    // Listen for sound broadcasts
+    // --------------------------------------------------
+    // SOUND EFFECTS
+    // --------------------------------------------------
+
     channel.on(
       "broadcast",
       { event: "play-sound" },
-      async (payload) => {
+      async (message) => {
 
-        console.log("RECEIVED:", payload);
+        console.log("SOUND RECEIVED:", message);
 
 
-        const file = payload?.payload?.file;
+        const file = message?.payload?.file;
 
 
         if (!file) {
 
           console.error(
-            "Received play-sound event without a filename:",
-            payload
+            "No sound filename received."
           );
 
           return;
+
         }
-
-
-        console.log("Playing:", file);
-
-
-        status.textContent =
-          "🔊 Playing: " + file;
 
 
         if (!audioEnabled) {
 
-          console.warn(
-            "Audio has not been enabled by the user."
-          );
-
           status.textContent =
-            "⚠️ Sound received, but audio is not enabled. Click Enable Audio.";
+            "⚠️ Sound received — click Enable Audio.";
 
           return;
+
         }
 
 
-        // Sounds are stored in the /sounds folder.
+        console.log("Playing sound:", file);
+
+
         const audio = new Audio(
           "sounds/" + encodeURIComponent(file)
         );
@@ -137,13 +142,9 @@
         audio.play().catch(error => {
 
           console.error(
-            "Audio playback failed:",
+            "Sound playback failed:",
             error
           );
-
-
-          status.textContent =
-            "🔴 Audio playback failed — check the console.";
 
         });
 
@@ -151,7 +152,170 @@
     );
 
 
-    // Connect to Supabase Realtime
+    // --------------------------------------------------
+    // MUSIC PLAY
+    // --------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      { event: "play-music" },
+      async (message) => {
+
+        console.log("MUSIC PLAY:", message);
+
+
+        const file = message?.payload?.file;
+
+
+        if (!file) return;
+
+
+        if (!audioEnabled) {
+
+          status.textContent =
+            "⚠️ Music received — click Enable Audio.";
+
+          return;
+
+        }
+
+
+        currentMusicFile = file;
+
+
+        // Stop previous song
+        if (musicAudio) {
+
+          musicAudio.pause();
+
+          musicAudio.currentTime = 0;
+
+        }
+
+
+        // Create new music player
+        musicAudio = new Audio(
+          "music/" + encodeURIComponent(file)
+        );
+
+
+        musicAudio.loop = repeatMusic;
+
+
+        musicAudio.onended = () => {
+
+          console.log("Music ended.");
+
+          if (!repeatMusic) {
+
+            status.textContent =
+              "🟢 Music finished";
+
+          }
+
+        };
+
+
+        status.textContent =
+          "🎵 Playing: " + file;
+
+
+        try {
+
+          await musicAudio.play();
+
+        } catch (error) {
+
+          console.error(
+            "Music playback failed:",
+            error
+          );
+
+          status.textContent =
+            "🔴 Music playback failed.";
+
+        }
+
+      }
+    );
+
+
+    // --------------------------------------------------
+    // MUSIC PAUSE
+    // --------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      { event: "pause-music" },
+      () => {
+
+        console.log("MUSIC PAUSE");
+
+
+        if (musicAudio) {
+
+          musicAudio.pause();
+
+          status.textContent =
+            "⏸ Music paused";
+
+        }
+
+      }
+    );
+
+
+    // --------------------------------------------------
+    // MUSIC REPEAT
+    // --------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      { event: "repeat-music" },
+      (message) => {
+
+        console.log("MUSIC REPEAT:", message);
+
+
+        const file = message?.payload?.file;
+
+        const repeat =
+          message?.payload?.repeat;
+
+
+        if (
+          file &&
+          currentMusicFile !== file
+        ) {
+
+          return;
+
+        }
+
+
+        repeatMusic = !!repeat;
+
+
+        if (musicAudio) {
+
+          musicAudio.loop = repeatMusic;
+
+        }
+
+
+        status.textContent =
+          repeatMusic
+            ? "🔁 Music repeating"
+            : "🎵 Repeat off";
+
+      }
+    );
+
+
+    // --------------------------------------------------
+    // CONNECT
+    // --------------------------------------------------
+
     channel.subscribe((state, error) => {
 
       console.log("STATE:", state);
@@ -181,6 +345,7 @@
           "🔴 Realtime connection error";
 
         console.error(error);
+
       }
 
 
