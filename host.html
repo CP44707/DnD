@@ -1,46 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Host</title>
+  <title>Host Soundboard</title>
 
   <style>
-    html, body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      background: #222;
+      color: white;
     }
 
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
+    h1 {
+      margin-bottom: 20px;
     }
 
-    #controls {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      background: white;
-      padding: 10px;
+    #sounds {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    button {
+      padding: 20px;
+      font-size: 18px;
+      cursor: pointer;
     }
   </style>
 </head>
 
 <body>
 
-  <div id="controls">
-    <input id="host" placeholder="Enter text">
-  </div>
+  <h1>Soundboard</h1>
 
-  <iframe src="https://app.roll20.net"></iframe>
+  <div id="sounds"></div>
 
   <script>
-    const input = document.getElementById("host");
+    fetch("sounds.json")
+      .then(response => response.json())
+      .then(files => {
+        const container = document.getElementById("sounds");
 
-    input.addEventListener("input", () => {
-      localStorage.setItem("hostText", input.value);
-    });
+        files.forEach(file => {
+          const button = document.createElement("button");
+
+          // Turn "door-open.mp3" into "Door Open"
+          const name = file
+            .replace(".mp3", "")
+            .replace(/[-_]/g, " ")
+            .replace(/\b\w/g, letter => letter.toUpperCase());
+
+          button.textContent = name;
+
+          button.onclick = () => {
+            console.log("Play:", file);
+
+            // We'll replace this with the real-time
+            // Host → Player code next.
+          };
+
+          container.appendChild(button);
+        });
+      })
+      .catch(error => {
+        console.error("Could not load sounds.json:", error);
+      });
   </script>
 
 </body>
