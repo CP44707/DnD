@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket Test</title>
+</head>
+<body>
+
+<h1>Supabase WebSocket Test</h1>
+<pre id="output">Starting...</pre>
+
+<script type="module">
+
+  const output = document.getElementById("output");
+
+  const keys = await fetch("keys.json").then(r => r.json());
+
+  output.textContent =
+    "URL loaded:\n" +
+    keys.supabaseUrl +
+    "\n\nOpening WebSocket...";
+
+  const projectRef = new URL(keys.supabaseUrl).hostname.split(".")[0];
+
+  const url =
+    "wss://" +
+    projectRef +
+    ".supabase.co/realtime/v1/websocket?apikey=" +
+    encodeURIComponent(keys.supabaseKey);
+
+  console.log("WebSocket URL:", url);
+
+  const socket = new WebSocket(url);
+
+  socket.onopen = () => {
+
+    console.log("OPEN");
+
+    output.textContent =
+      "🟢 WEBSOCKET CONNECTED\n\n" +
+      "The browser can reach Supabase Realtime.";
+
+  };
+
+  socket.onerror = (error) => {
+
+    console.error("WEBSOCKET ERROR:", error);
+
+    output.textContent =
+      "🔴 WEBSOCKET ERROR\n\n" +
+      "The browser could not establish the Realtime connection.\n\n" +
+      "Check the browser console for details.";
+
+  };
+
+  socket.onclose = (event) => {
+
+    console.log("CLOSED:", event);
+
+    output.textContent +=
+      "\n\nWebSocket closed.\n" +
+      "Code: " + event.code +
+      "\nReason: " + event.reason;
+
+  };
+
+</script>
+
+</body>
+</html>
