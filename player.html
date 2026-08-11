@@ -1,43 +1,56 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Supabase Test</title>
+  <title>Realtime Test</title>
 </head>
 
 <body>
 
-  <h1>Supabase Test</h1>
+  <h1>Supabase Realtime Test</h1>
 
-  <pre id="status">Loading...</pre>
+  <pre id="status">Starting...</pre>
 
-  <script>
-    fetch("keys.json")
-      .then(response => {
-        if (!response.ok) {
-          throw new Error("Could not load keys.json: " + response.status);
-        }
+  <script type="module">
 
-        return response.json();
-      })
-      .then(keys => {
+    import { createClient }
+      from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-        document.getElementById("status").textContent =
-          "URL loaded:\n" +
-          keys.supabaseUrl +
-          "\n\nKey loaded: " +
-          (keys.supabaseKey ? "YES" : "NO");
+    const status = document.getElementById("status");
 
-        console.log("Keys loaded:", keys);
+    try {
 
-      })
-      .catch(error => {
+      const keys = await fetch("keys.json").then(r => r.json());
 
-        document.getElementById("status").textContent =
-          "ERROR:\n" + error.message;
+      status.textContent = "Keys loaded.\nConnecting...";
 
-        console.error(error);
+      const supabase = createClient(
+        keys.supabaseUrl,
+        keys.supabaseKey
+      );
+
+      const channel = supabase.channel("soundboard-test");
+
+      channel.subscribe((state, error) => {
+
+        console.log("Realtime state:", state);
+        console.log("Realtime error:", error);
+
+        status.textContent =
+          "Realtime state: " + state +
+          "\n\n" +
+          (error ? JSON.stringify(error, null, 2) : "");
 
       });
+
+    } catch (error) {
+
+      status.textContent =
+        "ERROR:\n" + error.message;
+
+      console.error(error);
+
+    }
+
   </script>
 
 </body>
