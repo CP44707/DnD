@@ -1,20 +1,94 @@
+```html
 <!DOCTYPE html>
 <html>
 <head>
   <title>Player</title>
-</head>
-<body>
-  <div id="display"></div>
 
-  <script>
-    const display = document.getElementById("display");
-
-    function update() {
-      display.textContent = localStorage.getItem("hostText") || "";
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+      text-align: center;
+      padding: 50px;
     }
 
-    update();
-    setInterval(update, 100);
+    button {
+      font-size: 24px;
+      padding: 20px 40px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Player</h1>
+
+  <button id="enable">
+    🔊 Enable Sound
+  </button>
+
+  <p id="status">Waiting...</p>
+
+  <audio id="audio"></audio>
+
+
+  <script type="module">
+
+    import { createClient }
+      from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+
+    // Load Supabase settings
+    const keys = await fetch("keys.json").then(response => response.json());
+
+    const supabase = createClient(
+      keys.supabaseUrl,
+      keys.supabaseKey
+    );
+
+
+    const audio = document.getElementById("audio");
+    const enable = document.getElementById("enable");
+    const status = document.getElementById("status");
+
+
+    // Enable audio
+    enable.onclick = () => {
+
+      audio.src = "";
+      enable.style.display = "none";
+
+      status.textContent = "🔊 Sound enabled";
+
+    };
+
+
+    // Connect to soundboard
+    const channel = supabase.channel("soundboard");
+
+    channel
+      .on(
+        "broadcast",
+        { event: "play-sound" },
+        (message) => {
+
+          const file = message.payload.file;
+
+          status.textContent = "Playing: " + file;
+
+          audio.src = "sounds/" + file;
+
+          audio.currentTime = 0;
+
+          audio.play();
+
+        }
+      )
+      .subscribe();
+
   </script>
+
 </body>
 </html>
+```

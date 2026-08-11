@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -9,10 +10,6 @@
       padding: 30px;
       background: #222;
       color: white;
-    }
-
-    h1 {
-      margin-bottom: 20px;
     }
 
     #sounds {
@@ -35,37 +32,63 @@
 
   <div id="sounds"></div>
 
-  <script>
-    fetch("sounds.json")
-      .then(response => response.json())
-      .then(files => {
-        const container = document.getElementById("sounds");
+  <script type="module">
 
-        files.forEach(file => {
-          const button = document.createElement("button");
+    import { createClient }
+      from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-          // Turn "door-open.mp3" into "Door Open"
-          const name = file
-            .replace(".mp3", "")
-            .replace(/[-_]/g, " ")
-            .replace(/\b\w/g, letter => letter.toUpperCase());
 
-          button.textContent = name;
+    // Load Supabase settings
+    const keys = await fetch("keys.json").then(response => response.json());
 
-          button.onclick = () => {
-            console.log("Play:", file);
+    const supabase = createClient(
+      keys.supabaseUrl,
+      keys.supabaseKey
+    );
 
-            // We'll replace this with the real-time
-            // Host → Player code next.
-          };
 
-          container.appendChild(button);
+    // Connect to soundboard
+    const channel = supabase.channel("soundboard");
+
+    channel.subscribe();
+
+
+    // Load sounds
+    const files = await fetch("sounds.json").then(response => response.json());
+
+    const container = document.getElementById("sounds");
+
+    files.forEach(file => {
+
+      const button = document.createElement("button");
+
+      const name = file
+        .replace(".mp3", "")
+        .replace(/[-_]/g, " ")
+        .replace(/\b\w/g, letter => letter.toUpperCase());
+
+      button.textContent = name;
+
+
+      button.onclick = async () => {
+
+        await channel.send({
+          type: "broadcast",
+          event: "play-sound",
+          payload: {
+            file: file
+          }
         });
-      })
-      .catch(error => {
-        console.error("Could not load sounds.json:", error);
-      });
+
+      };
+
+
+      container.appendChild(button);
+
+    });
+
   </script>
 
 </body>
 </html>
+```
