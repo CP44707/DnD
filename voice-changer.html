@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceForge — Live Voice Changer</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #f5f7ff;
+        background:
+            radial-gradient(circle at 20% 10%, #332066 0, transparent 35%),
+            radial-gradient(circle at 90% 90%, #122c55 0, transparent 35%),
+            #090b12;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 30px;
+    }
+
+    .app {
+        width: min(1050px, 100%);
+        background: rgba(18, 21, 32, .94);
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: 24px;
+        box-shadow:
+            0 30px 100px rgba(0,0,0,.55),
+            inset 0 1px 0 rgba(255,255,255,.04);
+        overflow: hidden;
+    }
+
+    header {
+        padding: 28px 32px 22px;
+        border-bottom: 1px solid rgba(255,255,255,.07);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .logo {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #8b5cf6, #4f46e5);
+        font-size: 24px;
+        box-shadow: 0 10px 30px rgba(99,102,241,.3);
+    }
+
+    h1 {
+        margin: 0;
+        font-size: 22px;
+        letter-spacing: -.5px;
+    }
+
+    .subtitle {
+        margin-top: 3px;
+        color: #858da5;
+        font-size: 13px;
+    }
+
+    .status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #858da5;
+        font-size: 13px;
+    }
+
+    .status-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #555b6f;
+    }
+
+    .status.active {
+        color: #86efac;
+    }
+
+    .status.active .status-dot {
+        background: #22c55e;
+        box-shadow: 0 0 12px #22c55e;
+    }
+
+    main {
+        padding: 28px 32px 32px;
+    }
+
+    .routing {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 22px;
+    }
+
+    .card {
+        background: rgba(255,255,255,.035);
+        border: 1px solid rgba(255,255,255,.06);
+        border-radius: 16px;
+        padding: 18px;
+    }
+
+    .label {
+        display: block;
+        margin-bottom: 8px;
+        color: #9299ad;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 700;
+    }
+
+    select {
+        width: 100%;
+        padding: 12px 14px;
+        color: #f5f7ff;
+        background: #111521;
+        border: 1px solid #2a3040;
+        border-radius: 10px;
+        outline: none;
+        font-size: 14px;
+    }
+
+    select:focus {
+        border-color: #6366f1;
+    }
+
+    .preset-row {
+        display: grid;
+        grid-template-columns: 1fr 180px;
+        gap: 16px;
+        margin-bottom: 22px;
+    }
+
+    .effects {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
+    .effect {
+        background: rgba(255,255,255,.035);
+        border: 1px solid rgba(255,255,255,.06);
+        border-radius: 16px;
+        padding: 18px;
+    }
+
+    .effect-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 13px;
+    }
+
+    .effect-name {
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .value {
+        min-width: 54px;
+        text-align: right;
+        color: #a78bfa;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+        appearance: none;
+        width: 100%;
+        height: 5px;
+        border-radius: 5px;
+        background: #292e3d;
+        outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        width: 17px;
+        height: 17px;
+        border-radius: 50%;
+        background: #8b5cf6;
+        border: 3px solid #d9d0ff;
+        box-shadow: 0 0 12px rgba(139,92,246,.5);
+        cursor: pointer;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: #8b5cf6;
+        border: 3px solid #d9d0ff;
+        cursor: pointer;
+    }
+
+    .meter-card {
+        margin-top: 16px;
+        padding: 16px 18px;
+        background: rgba(255,255,255,.035);
+        border: 1px solid rgba(255,255,255,.06);
+        border-radius: 16px;
+    }
+
+    .meter {
+        height: 8px;
+        background: #171b27;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .meter-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
+        transition: width .05s linear;
+    }
+
+    .controls {
+        margin-top: 22px;
+        display: flex;
+        gap: 12px;
+    }
+
+    button {
+        border: 0;
+        border-radius: 12px;
+        padding: 13px 22px;
+        color: white;
+        background: #272c3a;
+        font-weight: 750;
+        cursor: pointer;
+        transition: .18s ease;
+    }
+
+    button:hover {
+        transform: translateY(-1px);
+        background: #33394a;
+    }
+
+    #startBtn {
+        flex: 1;
+        background: linear-gradient(135deg, #7c3aed, #4f46e5);
+        box-shadow: 0 10px 25px rgba(79,70,229,.25);
+        font-size: 15px;
+    }
+
+    #startBtn.running {
+        background: linear-gradient(135deg, #dc2626, #991b1b);
+    }
+
+    .hint {
+        margin-top: 20px;
+        padding: 15px 17px;
+        border-radius: 12px;
+        background: rgba(99,102,241,.07);
+        border: 1px solid rgba(99,102,241,.15);
+        color: #aeb5c8;
+        line-height: 1.55;
+        font-size: 13px;
+    }
+
+    .hint strong {
+        color: #ddd6fe;
+    }
+
+    footer {
+        padding: 17px 32px;
+        border-top: 1px solid rgba(255,255,255,.06);
+        color: #62697d;
+        font-size: 12px;
+        text-align: center;
+    }
+
+    @media (max-width: 720px) {
+        .routing,
+        .effects,
+        .preset-row {
+            grid-template-columns: 1fr;
+        }
+
+        header {
+            align-items: flex-start;
+        }
+
+        main,
+        header {
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<header>
+    <div class="brand">
+        <div class="logo">🎙️</div>
+        <div>
+            <h1>VoiceForge</h1>
+            <div class="subtitle">Live microphone voice changer</div>
+        </div>
+    </div>
+
+    <div id="status" class="status">
+        <span class="status-dot"></span>
+        <span id="statusText">Ready</span>
+    </div>
+</header>
+
+<main>
+
+    <div class="routing">
+
+        <div class="card">
+            <span class="label">Microphone Input</span>
+            <select id="inputDevice">
+                <option value="">Default microphone</option>
+            </select>
+        </div>
+
+        <div class="card">
+            <span class="label">Audio Output</span>
+            <select id="outputDevice">
+                <option value="">Default speakers</option>
+            </select>
+        </div>
+
+    </div>
+
+    <div class="preset-row">
+
+        <div class="card">
+            <span class="label">Preset</span>
+            <select id="preset">
+                <option value="custom">Custom</option>
+                <option value="normal">Normal Voice</option>
+                <option value="deep">Deep Voice</option>
+                <option value="monster">Monster</option>
+                <option value="robot">Robot</option>
+                <option value="alien">Alien</option>
+                <option value="radio">Radio</option>
+                <option value="megaphone">Megaphone</option>
+            </select>
+        </div>
+
+        <div class="card">
+            <span class="label">Master Volume</span>
+            <input id="volume" type="range" min="0" max="150" value="100">
+            <div class="value" id="volumeValue">100%</div>
+        </div>
+
+    </div>
+
+    <div class="effects">
+
+        <div class="effect">
+            <div class="effect-top">
+                <span class="effect-name">🎵 Pitch</span>
+                <span class="value" id="pitchValue">0 st</span>
+            </div>
+            <input id="pitch" type="range" min="-12" max="12" step=".1" value="0">
+        </div>
+
+        <div class="effect">
+            <div class="effect-top">
+                <span class="effect-name">🔊 Bass</span>
+                <span class="value" id="bassValue">0 dB</span>
+            </div>
+            <input id="bass" type="range" min="-15" max="15" step=".5" value="0">
+        </div>
+
+        <div class="effect">
+            <div class="effect-top">
+                <span class="effect-name">✨ Treble</span>
+                <span class="value" id="trebleValue">0 dB</span>
+            </div>
+            <input id="treble" type="range" min="-15" max="15" step=".5" value="0">
+        </div>
+
+        <div class="effect">
+            <div class="effect-top">
+                <span class="effect-name">🤖 Distortion</span>
+                <span class="value" id="distortionValue">0%</span>
+            </div>
+            <input id="distortion" type="range" min="0" max="100" value="0">
+        </div>
+
+        <div class="effect">
+            <div class="effect-top">
+                <span class="effect-name">🌫️ Echo</span>
+                <span class="value" id="echoValue">0%</span>
+            </div>
+            <input id="echo" type="range" min="0" max="80" value="0">
+        </div>
+
+        <div class="effect">
+            <div class="effect-top">
+                <span class="effect-name">🎚️ Compression</span>
+                <span class="value" id="compressionValue">50%</span>
+            </div>
+            <input id="compression" type="range" min="0" max="100" value="50">
+        </div>
+
+    </div>
+
+    <div class="meter-card">
+        <span class="label">Input Level</span>
+        <div class="meter">
+            <div id="meterFill" class="meter-fill"></div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="startBtn">🎙 START VOICE CHANGER</button>
+        <button id="refreshBtn">↻ Refresh Devices</button>
+    </div>
+
+    <div class="hint">
+        <strong>Discord setup:</strong>
+        Start the voice changer, select your virtual audio cable as the
+        output, then open Discord → Settings → Voice & Video and select
+        the virtual cable's <strong>recording/input device</strong> as Discord's microphone.
+        Use headphones to prevent feedback.
+    </div>
+
+</main>
+
+<footer>
+    VoiceForge • Web Audio API • Best experienced in Chrome or Edge
+</footer>
+
+</div>
+
+<script>
+let audioContext = null;
+let micStream = null;
+let source = null;
+
+let pitchNode = null;
+let bassFilter = null;
+let trebleFilter = null;
+let distortionNode = null;
+let compressor = null;
+let echoNode = null;
+let echoFeedback = null;
+let masterGain = null;
+let analyser = null;
+
+let running = false;
+
+
+/* ---------------------------------------------------------
+   INLINE PITCH SHIFTER
+   --------------------------------------------------------- */
+
+const pitchWorkletCode = `
+
+class PitchShifter extends AudioWorkletProcessor {
+
+    constructor() {
+        super();
+
+        this.bufferSize = 32768;
+        this.buffer = new Float32Array(this.bufferSize);
+
+        this.write = 0;
+        this.phase = 0;
+
+        this.pitch = 1;
+
+        this.port.onmessage = event => {
+            if (event.data.pitch) {
+                this.pitch = event.data.pitch;
+            }
+        };
+    }
+
+    process(inputs, outputs) {
+
+        const input = inputs[0];
+        const output = outputs[0];
+
+        if (!input.length) return true;
+
+        const inChannel = input[0];
+
+        for (let i = 0; i < inChannel.length; i++) {
+
+            this.buffer[this.write] = inChannel[i];
+
+            const delayMin = 400;
+            const delayMax = 9000;
+
+            this.phase += (this.pitch - 1) * 0.00055;
+
+            if (this.phase > 1) this.phase -= 1;
+            if (this.phase < 0) this.phase += 1;
+
+            const d1 = delayMin +
+                this.phase * (delayMax - delayMin);
+
+            const d2 = delayMin +
+                ((this.phase + 0.5) % 1) * (delayMax - delayMin);
+
+            const r1 = (this.write - d1 + this.bufferSize) %
+                this.bufferSize;
+
+            const r2 = (this.write - d2 + this.bufferSize) %
+                this.bufferSize;
+
+            const i1 = Math.floor(r1);
+            const i2 = Math.floor(r2);
+
+            const f1 = r1 - i1;
+            const f2 = r2 - i2;
+
+            const s1 =
+                this.buffer[i1] * (1 - f1) +
+                this.buffer[(i1 + 1) % this.bufferSize] * f1;
+
+            const s2 =
+                this.buffer[i2] * (1 - f2) +
+                this.buffer[(i2 + 1) % this.bufferSize] * f2;
+
+            const mix = Math.sin(this.phase * Math.PI);
+            const sample = s1 * (1 - mix) + s2 * mix;
+
+            for (let ch = 0; ch < output.length; ch++) {
+                output[ch][i] = sample;
+            }
+
+            this.write++;
+
+            if (this.write >= this.bufferSize) {
+                this.write = 0;
+            }
+        }
+
+        return true;
+    }
+}
+
+registerProcessor('voiceforge-pitch', PitchShifter);
+`;
+
+
+/* ---------------------------------------------------------
+   HELPERS
+   --------------------------------------------------------- */
+
+function $(id) {
+    return document.getElementById(id);
+}
+
+function setStatus(text, active = false) {
+    $("statusText").textContent = text;
+    $("status").classList.toggle("active", active);
+}
+
+function distortionCurve(amount) {
+
+    const samples = 44100;
+    const curve = new Float32Array(samples);
+
+    const k = amount * 100;
+
+    for (let i = 0; i < samples; i++) {
+
+        const x = i * 2 / samples - 1;
+
+        if (k === 0) {
+            curve[i] = x;
+        } else {
+            curve[i] =
+                ((3 + k) * x * 20 * Math.PI / 180) /
+                (Math.PI + k * Math.abs(x));
+        }
+    }
+
+    return curve;
+}
+
+
+/* ---------------------------------------------------------
+   DEVICE ENUMERATION
+   --------------------------------------------------------- */
+
+async function loadDevices() {
+
+    try {
+
+        const devices =
+            await navigator.mediaDevices.enumerateDevices();
+
+        const input = $("inputDevice");
+        const output = $("outputDevice");
+
+        const oldInput = input.value;
+        const oldOutput = output.value;
+
+        input.innerHTML =
+            '<option value="">Default microphone</option>';
+
+        output.innerHTML =
+            '<option value="">Default speakers</option>';
+
+        devices.forEach(device => {
+
+            if (device.kind === "audioinput") {
+
+                const option = document.createElement("option");
+
+                option.value = device.deviceId;
+
+                option.textContent =
+                    device.label ||
+                    `Microphone ${input.options.length}`;
+
+                input.appendChild(option);
+            }
+
+            if (device.kind === "audiooutput") {
+
+                const option = document.createElement("option");
+
+                option.value = device.deviceId;
+
+                option.textContent =
+                    device.label ||
+                    `Output ${output.options.length}`;
+
+                output.appendChild(option);
+            }
+        });
+
+        if ([...input.options].some(x => x.value === oldInput))
+            input.value = oldInput;
+
+        if ([...output.options].some(x => x.value === oldOutput))
+            output.value = oldOutput;
+
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+
+/* ---------------------------------------------------------
+   START
+   --------------------------------------------------------- */
+
+async function startVoiceChanger() {
+
+    if (running) {
+        stopVoiceChanger();
+        return;
+    }
+
+    try {
+
+        setStatus("Requesting microphone…");
+
+        const deviceId = $("inputDevice").value;
+
+        const constraints = {
+            audio: {
+                deviceId: deviceId
+                    ? { exact: deviceId }
+                    : undefined,
+
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false
+            }
+        };
+
+        micStream =
+            await navigator.mediaDevices.getUserMedia(constraints);
+
+        audioContext =
+            new (window.AudioContext ||
+                 window.webkitAudioContext)();
+
+        await audioContext.resume();
+
+        source =
+            audioContext.createMediaStreamSource(micStream);
+
+
+        /* Pitch worklet */
+
+        const blob =
+            new Blob([pitchWorkletCode],
+                { type: "application/javascript" });
+
+        const workletURL =
+            URL.createObjectURL(blob);
+
+        await audioContext.audioWorklet.addModule(workletURL);
+
+        URL.revokeObjectURL(workletURL);
+
+        pitchNode =
+            new AudioWorkletNode(
+                audioContext,
+                "voiceforge-pitch",
+                {
+                    numberOfInputs: 1,
+                    numberOfOutputs: 1,
+                    outputChannelCount: [2]
+                }
+            );
+
+
+        /* Filters */
+
+        bassFilter =
+            audioContext.createBiquadFilter();
+
+        bassFilter.type = "lowshelf";
+        bassFilter.frequency.value = 180;
+
+
+        trebleFilter =
+            audioContext.createBiquadFilter();
+
+        trebleFilter.type = "highshelf";
+        trebleFilter.frequency.value = 3500;
+
+
+        /* Distortion */
+
+        distortionNode =
+            audioContext.createWaveShaper();
+
+        distortionNode.oversample = "4x";
+
+
+        /* Compressor */
+
+        compressor =
+            audioContext.createDynamicsCompressor();
+
+        compressor.threshold.value = -24;
+        compressor.knee.value = 20;
+        compressor.ratio.value = 4;
+        compressor.attack.value = .003;
+        compressor.release.value = .25;
+
+
+        /* Echo */
+
+        echoNode =
+            audioContext.createDelay(1.0);
+
+        echoNode.delayTime.value = .18;
+
+        echoFeedback =
+            audioContext.createGain();
+
+        echoFeedback.gain.value = 0;
+
+
+        /* Master */
+
+        masterGain =
+            audioContext.createGain();
+
+        masterGain.gain.value =
+            Number($("volume").value) / 100;
+
+
+        /* Analyzer */
+
+        analyser =
+            audioContext.createAnalyser();
+
+        analyser.fftSize = 256;
+
+
+        /*
+         * AUDIO CHAIN
+         *
+         * Microphone
+         *     ↓
+         * Pitch
+         *     ↓
+         * Bass
+         *     ↓
+         * Treble
+         *     ↓
+         * Distortion
+         *     ↓
+         * Compressor
+         *     ↓
+         * Echo
+         *     ↓
+         * Master
+         *     ↓
+         * Output device / VB-CABLE
+         */
+
+        source.connect(pitchNode);
+
+        pitchNode.connect(bassFilter);
+
+        bassFilter.connect(trebleFilter);
+
+        trebleFilter.connect(distortionNode);
+
+        distortionNode.connect(compressor);
+
+        compressor.connect(masterGain);
+
+        compressor.connect(echoNode);
+
+        echoNode.connect(echoFeedback);
+
+        echoFeedback.connect(echoNode);
+
+        echoNode.connect(masterGain);
+
+        masterGain.connect(analyser);
+
+
+        /*
+         * Select output device.
+         */
+
+        if (
+            $("outputDevice").value &&
+            typeof audioContext.setSinkId === "function"
+        ) {
+
+            await audioContext.setSinkId({
+                type: "device",
+                deviceId: $("outputDevice").value
+            });
+
+        }
+
+
+        masterGain.connect(audioContext.destination);
+
+
+        running = true;
+
+        $("startBtn").textContent =
+            "■ STOP VOICE CHANGER";
+
+        $("startBtn").classList.add("running");
+
+        setStatus("Voice changer active", true);
+
+        updateAllEffects();
+
+        drawMeter();
+
+    } catch (err) {
+
+        console.error(err);
+
+        alert(
+            "Could not start the voice changer.\n\n" +
+            err.message
+        );
+
+        stopVoiceChanger();
+    }
+}
+
+
+/* ---------------------------------------------------------
+   STOP
+   --------------------------------------------------------- */
+
+function stopVoiceChanger() {
+
+    running = false;
+
+    if (micStream) {
+
+        micStream.getTracks().forEach(track =>
+            track.stop()
+        );
+
+        micStream = null;
+    }
+
+    if (audioContext) {
+
+        audioContext.close();
+
+        audioContext = null;
+    }
+
+    source = null;
+    pitchNode = null;
+    bassFilter = null;
+    trebleFilter = null;
+    distortionNode = null;
+    compressor = null;
+    echoNode = null;
+    echoFeedback = null;
+    masterGain = null;
+    analyser = null;
+
+    $("startBtn").textContent =
+        "🎙 START VOICE CHANGER";
+
+    $("startBtn").classList.remove("running");
+
+    setStatus("Ready");
+}
+
+
+/* ---------------------------------------------------------
+   EFFECT CONTROLS
+   --------------------------------------------------------- */
+
+function updateAllEffects() {
+
+    if (!audioContext || !running) return;
+
+    const pitch =
+        Number($("pitch").value);
+
+    const ratio =
+        Math.pow(2, pitch / 12);
+
+    pitchNode.port.postMessage({
+        pitch: ratio
+    });
+
+    bassFilter.gain.value =
+        Number($("bass").value);
+
+    trebleFilter.gain.value =
+        Number($("treble").value);
+
+    const distortion =
+        Number($("distortion").value) / 100;
+
+    distortionNode.curve =
+        distortionCurve(distortion);
+
+    echoFeedback.gain.value =
+        Number($("echo").value) / 100;
+
+    masterGain.gain.value =
+        Number($("volume").value) / 100;
+
+    const compression =
+        Number($("compression").value);
+
+    /*
+     * 0% = relatively gentle compression
+     * 100% = strong compression
+     */
+
+    compressor.ratio.value =
+        1.5 + compression / 100 * 10;
+
+    compressor.threshold.value =
+        -12 - compression / 100 * 28;
+}
+
+
+/* ---------------------------------------------------------
+   DISPLAY VALUES
+   --------------------------------------------------------- */
+
+function updateLabels() {
+
+    $("pitchValue").textContent =
+        Number($("pitch").value).toFixed(1) + " st";
+
+    $("bassValue").textContent =
+        Number($("bass").value).toFixed(1) + " dB";
+
+    $("trebleValue").textContent =
+        Number($("treble").value).toFixed(1) + " dB";
+
+    $("distortionValue").textContent =
+        $("distortion").value + "%";
+
+    $("echoValue").textContent =
+        $("echo").value + "%";
+
+    $("compressionValue").textContent =
+        $("compression").value + "%";
+
+    $("volumeValue").textContent =
+        $("volume").value + "%";
+}
+
+
+/* ---------------------------------------------------------
+   METER
+   --------------------------------------------------------- */
+
+function drawMeter() {
+
+    if (!running || !analyser) {
+
+        $("meterFill").style.width = "0%";
+
+        return;
+    }
+
+    const data =
+        new Uint8Array(analyser.fftSize);
+
+    analyser.getByteTimeDomainData(data);
+
+    let sum = 0;
+
+    for (let i = 0; i < data.length; i++) {
+
+        const value =
+            (data[i] - 128) / 128;
+
+        sum += value * value;
+    }
+
+    const rms =
+        Math.sqrt(sum / data.length);
+
+    const level =
+        Math.min(100, rms * 220);
+
+    $("meterFill").style.width =
+        level + "%";
+
+    requestAnimationFrame(drawMeter);
+}
+
+
+/* ---------------------------------------------------------
+   PRESETS
+   --------------------------------------------------------- */
+
+const presets = {
+
+    normal: {
+        pitch: 0,
+        bass: 0,
+        treble: 0,
+        distortion: 0,
+        echo: 0,
+        compression: 50,
+        volume: 100
+    },
+
+    deep: {
+        pitch: -5,
+        bass: 7,
+        treble: -2,
+        distortion: 0,
+        echo: 5,
+        compression: 65,
+        volume: 100
+    },
+
+    monster: {
+        pitch: -10,
+        bass: 10,
+        treble: -5,
+        distortion: 28,
+        echo: 15,
+        compression: 80,
+        volume: 95
+    },
+
+    robot: {
+        pitch: -2,
+        bass: 2,
+        treble: 7,
+        distortion: 45,
+        echo: 8,
+        compression: 90,
+        volume: 90
+    },
+
+    alien: {
+        pitch: 7,
+        bass: -4,
+        treble: 8,
+        distortion: 20,
+        echo: 30,
+        compression: 65,
+        volume: 90
+    },
+
+    radio: {
+        pitch: 0,
+        bass: -12,
+        treble: 9,
+        distortion: 12,
+        echo: 3,
+        compression: 95,
+        volume: 100
+    },
+
+    megaphone: {
+        pitch: -1,
+        bass: -10,
+        treble: 10,
+        distortion: 18,
+        echo: 5,
+        compression: 100,
+        volume: 85
+    }
+
+};
+
+
+function applyPreset(name) {
+
+    if (!presets[name]) return;
+
+    const p = presets[name];
+
+    $("pitch").value = p.pitch;
+    $("bass").value = p.bass;
+    $("treble").value = p.treble;
+    $("distortion").value = p.distortion;
+    $("echo").value = p.echo;
+    $("compression").value = p.compression;
+    $("volume").value = p.volume;
+
+    updateLabels();
+    updateAllEffects();
+}
+
+
+/* ---------------------------------------------------------
+   EVENTS
+   --------------------------------------------------------- */
+
+[
+    "pitch",
+    "bass",
+    "treble",
+    "distortion",
+    "echo",
+    "compression",
+    "volume"
+].forEach(id => {
+
+    $(id).addEventListener("input", () => {
+
+        $("preset").value = "custom";
+
+        updateLabels();
+        updateAllEffects();
+    });
+
+});
+
+
+$("preset").addEventListener("change", () => {
+
+    applyPreset($("preset").value);
+
+});
+
+
+$("startBtn").addEventListener("click", async () => {
+
+    if (running) {
+        stopVoiceChanger();
+    } else {
+        await startVoiceChanger();
+    }
+
+});
+
+
+$("refreshBtn").addEventListener("click", async () => {
+
+    await loadDevices();
+
+});
+
+
+$("outputDevice").addEventListener("change", async () => {
+
+    if (
+        running &&
+        audioContext &&
+        typeof audioContext.setSinkId === "function"
+    ) {
+
+        try {
+
+            await audioContext.setSinkId({
+                type: "device",
+                deviceId: $("outputDevice").value
+            });
+
+        } catch (err) {
+
+            console.error(err);
+
+            alert(
+                "This browser could not change the audio output device."
+            );
+        }
+    }
+
+});
+
+
+/* ---------------------------------------------------------
+   INITIALIZATION
+   --------------------------------------------------------- */
+
+updateLabels();
+
+navigator.mediaDevices?.addEventListener(
+    "devicechange",
+    loadDevices
+);
+
+loadDevices();
+
+</script>
+
+</body>
+</html>
