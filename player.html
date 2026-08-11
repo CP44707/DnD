@@ -10,21 +10,32 @@
 
   <pre id="status">Starting...</pre>
 
-  <script type="module">
+<script type="module">
 
-    import { createClient }
-      from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+  import { createClient }
+    from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-    const status = document.getElementById("status");
+  const status = document.getElementById("status");
+
+  try {
+
+    status.textContent = "Loading keys...";
 
     const keys = await fetch("keys.json").then(r => r.json());
+
+    console.log("Supabase URL:", keys.supabaseUrl);
+    console.log("Key loaded:", !!keys.supabaseKey);
+
+    status.textContent = "Creating Supabase client...";
 
     const supabase = createClient(
       keys.supabaseUrl,
       keys.supabaseKey
     );
 
-    const channel = supabase.channel("soundboard-test");
+    status.textContent = "Connecting to Supabase...";
+
+    const channel = supabase.channel("soundboard");
 
     channel.subscribe((state, error) => {
 
@@ -32,13 +43,23 @@
       console.log("ERROR:", error);
 
       status.textContent =
-        "STATE:\n" + state +
-        "\n\nERROR:\n" +
-        JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
+        "STATE: " + state +
+        "\n\nERROR: " +
+        (error ? JSON.stringify(error, Object.getOwnPropertyNames(error), 2) : "none");
 
     });
 
-  </script>
+  } catch (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "FAILED:\n\n" +
+      JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
+
+  }
+
+</script>
 
 </body>
 </html>
