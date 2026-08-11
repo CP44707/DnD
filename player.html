@@ -17,39 +17,26 @@
 
     const status = document.getElementById("status");
 
-    try {
+    const keys = await fetch("keys.json").then(r => r.json());
 
-      const keys = await fetch("keys.json").then(r => r.json());
+    const supabase = createClient(
+      keys.supabaseUrl,
+      keys.supabaseKey
+    );
 
-      status.textContent = "Keys loaded.\nConnecting...";
+    const channel = supabase.channel("soundboard-test");
 
-      const supabase = createClient(
-        keys.supabaseUrl,
-        keys.supabaseKey
-      );
+    channel.subscribe((state, error) => {
 
-      const channel = supabase.channel("soundboard-test");
-
-      channel.subscribe((state, error) => {
-
-        console.log("Realtime state:", state);
-        console.log("Realtime error:", error);
-
-        status.textContent =
-          "Realtime state: " + state +
-          "\n\n" +
-          (error ? JSON.stringify(error, null, 2) : "");
-
-      });
-
-    } catch (error) {
+      console.log("STATE:", state);
+      console.log("ERROR:", error);
 
       status.textContent =
-        "ERROR:\n" + error.message;
+        "STATE:\n" + state +
+        "\n\nERROR:\n" +
+        JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
 
-      console.error(error);
-
-    }
+    });
 
   </script>
 
