@@ -807,7 +807,7 @@ async function playMusic(song) {
 // --------------------------------------------------
 
 async function toggleRepeat(
-  song,
+  file,
   repeat
 ) {
 
@@ -816,48 +816,26 @@ async function toggleRepeat(
 
   console.log(
     "Repeat:",
-    song.name,
+    file,
     repeat
   );
 
 
-  const {
-    error
-  } =
-    await channel.send({
+  await channel.send({
 
-      type: "broadcast",
+    type: "broadcast",
 
-      event: "repeat-music",
+    event: "repeat-music",
 
-      payload: {
+    payload: {
 
-        file: song.name,
+      file: file,
 
-        repeat: repeat
+      repeat: repeat
 
-      }
+    }
 
-    });
-
-
-  if (error) {
-
-    console.error(error);
-
-    status.textContent =
-      "🔴 Failed to change repeat:\n" +
-      error.message;
-
-    return;
-
-  }
-
-
-  status.textContent =
-    repeat
-      ? "🔁 Repeating " + song.name
-      : "▶ Repeat disabled for " + song.name;
+  });
 
 }
 
@@ -1111,13 +1089,7 @@ function renderMusic() {
         song.name;
 
 
-      const controls =
-        document.createElement("div");
-
-      controls.className =
-        "music-controls";
-
-
+      // Play button
       const playButton =
         document.createElement("button");
 
@@ -1125,17 +1097,19 @@ function renderMusic() {
         "▶ Play";
 
       playButton.onclick =
-        () => playMusic(song);
+        () => {
+
+          playMusic(song);
+
+        };
 
 
+      // Repeat button
       const repeatButton =
         document.createElement("button");
 
       repeatButton.textContent =
         "🔁";
-
-      repeatButton.title =
-        "Toggle repeat";
 
 
       let repeating = false;
@@ -1154,13 +1128,14 @@ function renderMusic() {
 
 
           toggleRepeat(
-            song,
+            song.name,
             repeating
           );
 
         };
 
 
+      // Delete button
       const deleteButton =
         document.createElement("button");
 
@@ -1171,16 +1146,13 @@ function renderMusic() {
         () => deleteFile(song);
 
 
-      controls.appendChild(playButton);
-
-      controls.appendChild(repeatButton);
-
-      controls.appendChild(deleteButton);
-
-
       row.appendChild(name);
 
-      row.appendChild(controls);
+      row.appendChild(playButton);
+
+      row.appendChild(repeatButton);
+
+      row.appendChild(deleteButton);
 
 
       music.appendChild(row);
