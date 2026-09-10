@@ -85,17 +85,6 @@
     .upload-row {
       margin-bottom: 15px;
     }
-
-    .music-controls {
-      display: flex;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    .repeat-active {
-      background: #4caf50;
-      color: white;
-    }
   </style>
 </head>
 
@@ -157,12 +146,7 @@
     </button>
 
   </div>
-  <div class="box">
-    <button id="preloadAudio">
-  ⚡ Preload All Audio
-  </button>
 
-  </div>
 
   <div class="box">
 
@@ -204,6 +188,10 @@
       </button>
 
     </div>
+
+    <button id="preloadAudio">
+      ⚡ Preload All Audio
+    </button>
 
     <div id="music"></div>
 
@@ -451,7 +439,12 @@ async function createSession() {
   );
 
 }
-// preload button
+
+
+// --------------------------------------------------
+// PRELOAD ALL AUDIO
+// --------------------------------------------------
+
 async function preloadAllAudio() {
 
   if (!channel) {
@@ -500,7 +493,6 @@ async function preloadAllAudio() {
     "🟢 Preload command sent to players.";
 
 }
-
 
 
 // --------------------------------------------------
@@ -858,44 +850,6 @@ async function playMusic(song) {
 
 
 // --------------------------------------------------
-// TOGGLE MUSIC REPEAT
-// --------------------------------------------------
-
-async function toggleRepeat(
-  file,
-  repeat
-) {
-
-  if (!channel) return;
-
-
-  console.log(
-    "Repeat:",
-    file,
-    repeat
-  );
-
-
-  await channel.send({
-
-    type: "broadcast",
-
-    event: "repeat-music",
-
-    payload: {
-
-      file: file,
-
-      repeat: repeat
-
-    }
-
-  });
-
-}
-
-
-// --------------------------------------------------
 // DELETE FILE
 // --------------------------------------------------
 
@@ -1144,7 +1098,6 @@ function renderMusic() {
         song.name;
 
 
-      // Play button
       const playButton =
         document.createElement("button");
 
@@ -1152,45 +1105,9 @@ function renderMusic() {
         "▶ Play";
 
       playButton.onclick =
-        () => {
-
-          playMusic(song);
-
-        };
+        () => playMusic(song);
 
 
-      // Repeat button
-      const repeatButton =
-        document.createElement("button");
-
-      repeatButton.textContent =
-        "🔁";
-
-
-      let repeating = false;
-
-
-      repeatButton.onclick =
-        () => {
-
-          repeating = !repeating;
-
-
-          repeatButton.classList.toggle(
-            "repeat-active",
-            repeating
-          );
-
-
-          toggleRepeat(
-            song.name,
-            repeating
-          );
-
-        };
-
-
-      // Delete button
       const deleteButton =
         document.createElement("button");
 
@@ -1204,8 +1121,6 @@ function renderMusic() {
       row.appendChild(name);
 
       row.appendChild(playButton);
-
-      row.appendChild(repeatButton);
 
       row.appendChild(deleteButton);
 
@@ -1312,6 +1227,16 @@ document
   .getElementById("newCode")
   .onclick =
   createSession;
+
+
+// --------------------------------------------------
+// PRELOAD AUDIO
+// --------------------------------------------------
+
+document
+  .getElementById("preloadAudio")
+  .onclick =
+  preloadAllAudio;
 
 
 // --------------------------------------------------
