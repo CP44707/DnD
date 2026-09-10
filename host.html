@@ -136,6 +136,62 @@
       white-space: pre-wrap;
     }
 
+    /* --------------------------------------------------
+       TEMPORARY FOLDER CONTROLS
+       -------------------------------------------------- */
+
+    .temp-controls {
+      background: #333;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    .temp-controls p {
+      margin-top: 0;
+      color: #ccc;
+      font-size: 14px;
+    }
+
+    .folder-button {
+      display: inline-block;
+      padding: 12px 16px;
+      background: #555;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-right: 6px;
+      margin-bottom: 8px;
+    }
+
+    .folder-button:hover {
+      background: #666;
+    }
+
+    .folder-input {
+      display: none;
+    }
+
+    .temporary-label {
+      font-size: 12px;
+      color: #ffcc66;
+      margin-left: 5px;
+    }
+
+    .temporary-music-name {
+      background: #4a4030;
+    }
+
+    .temporary-sound-button {
+      background: #4a4030;
+      color: white;
+    }
+
+    .empty-temp {
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
     @media (max-width: 700px) {
       #columns {
         grid-template-columns: 1fr;
@@ -221,6 +277,31 @@
 
         <h2>🔊 Sounds</h2>
 
+        <div class="temp-controls">
+
+          <p>
+            Temporary sounds stay only in this browser session.
+          </p>
+
+          <label class="folder-button">
+            📁 Choose Sound Folder
+            <input
+              id="soundFolderInput"
+              class="folder-input"
+              type="file"
+              webkitdirectory
+              directory
+              multiple
+              accept="audio/*"
+            >
+          </label>
+
+          <div id="soundFolderStatus">
+            No temporary sound folder selected.
+          </div>
+
+        </div>
+
         <div id="sounds"></div>
 
       </div>
@@ -231,6 +312,31 @@
       <div class="column">
 
         <h2>🎵 Music</h2>
+
+        <div class="temp-controls">
+
+          <p>
+            Temporary music stays only in this browser session.
+          </p>
+
+          <label class="folder-button">
+            📁 Choose Music Folder
+            <input
+              id="musicFolderInput"
+              class="folder-input"
+              type="file"
+              webkitdirectory
+              directory
+              multiple
+              accept="audio/*"
+            >
+          </label>
+
+          <div id="musicFolderStatus">
+            No temporary music folder selected.
+          </div>
+
+        </div>
 
         <div id="music"></div>
 
@@ -285,6 +391,18 @@
     const loginMessage =
       document.getElementById("loginMessage");
 
+    const soundFolderInput =
+      document.getElementById("soundFolderInput");
+
+    const musicFolderInput =
+      document.getElementById("musicFolderInput");
+
+    const soundFolderStatus =
+      document.getElementById("soundFolderStatus");
+
+    const musicFolderStatus =
+      document.getElementById("musicFolderStatus");
+
 
     // --------------------------------------------------
     // STATE
@@ -300,6 +418,19 @@
 
 
     // --------------------------------------------------
+    // TEMPORARY LOCAL FILES
+    // --------------------------------------------------
+
+    let temporarySounds = [];
+
+    let temporaryMusic = [];
+
+
+    const audioExtensions =
+      /\.(mp3|wav|ogg|m4a|webm|aac|flac)$/i;
+
+
+    // --------------------------------------------------
     // FORMAT FILE NAME
     // --------------------------------------------------
 
@@ -307,7 +438,7 @@
 
       return file
         .replace(
-          /\.(mp3|wav|ogg|m4a)$/i,
+          /\.(mp3|wav|ogg|m4a|webm|aac|flac)$/i,
           ""
         )
         .replace(
@@ -643,6 +774,11 @@
         return;
 
       }
+
+
+      renderTemporarySounds();
+
+      renderTemporaryMusic();
 
 
       await createSession();
@@ -1025,6 +1161,42 @@
 
     async function playSound(file) {
 
+      /*
+       * Temporary files are local to this browser.
+       * They are played directly on the host and are
+       * intentionally NOT sent through Supabase.
+       */
+
+      const temporaryFile =
+        temporarySounds.find(
+          item =>
+            item.name === file
+        );
+
+
+      if (temporaryFile) {
+
+        const audio =
+          new Audio(
+            temporaryFile.url
+          );
+
+
+        audio.play().catch(error => {
+
+          console.error(
+            "Temporary sound playback failed:",
+            error
+          );
+
+        });
+
+
+        return;
+
+      }
+
+
       if (
         !connected ||
         !channel
@@ -1089,6 +1261,30 @@
 
     async function playMusic(file) {
 
+      /*
+       * Temporary music is local to this browser.
+       * It is played directly on the host and is NOT
+       * sent through Supabase.
+       */
+
+      const temporaryFile =
+        temporaryMusic.find(
+          item =>
+            item.name === file
+        );
+
+
+      if (temporaryFile) {
+
+        playTemporaryMusic(
+          temporaryFile
+        );
+
+        return;
+
+      }
+
+
       if (
         !connected ||
         !channel
@@ -1148,10 +1344,67 @@
 
 
     // --------------------------------------------------
+    // TEMPORARY MUSIC PLAYER
+    // --------------------------------------------------
+
+    let temporaryMusicAudio = null;
+
+
+    function playTemporaryMusic(file) {
+
+      if (temporaryMusicAudio) {
+
+        temporaryMusicAudio.pause();
+
+        temporaryMusicAudio.currentTime =
+          0;
+
+      }
+
+
+      temporaryMusicAudio =
+        new Audio(file.url);
+
+
+      temporaryMusicAudio.loop =
+        true;
+
+
+      temporaryMusicAudio.play().catch(
+        error => {
+
+          console.error(
+            "Temporary music playback failed:",
+            error
+          );
+
+        }
+      );
+
+
+      status.textContent =
+        "🎵 Playing temporary music: " +
+        file.name;
+
+    }
+
+
+    // --------------------------------------------------
     // PAUSE MUSIC
     // --------------------------------------------------
 
     async function pauseMusic() {
+
+      /*
+       * Pause local temporary music if it is playing.
+       */
+
+      if (temporaryMusicAudio) {
+
+        temporaryMusicAudio.pause();
+
+      }
+
 
       if (
         !connected ||
@@ -1195,6 +1448,31 @@
       file,
       repeat
     ) {
+
+      /*
+       * Temporary music already loops locally.
+       */
+
+      const temporaryFile =
+        temporaryMusic.find(
+          item =>
+            item.name === file
+        );
+
+
+      if (temporaryFile) {
+
+        if (temporaryMusicAudio) {
+
+          temporaryMusicAudio.loop =
+            !!repeat;
+
+        }
+
+        return;
+
+      }
+
 
       if (
         !connected ||
@@ -1359,149 +1637,618 @@
 
       files.forEach(file => {
 
-        const item =
-          document.createElement(
-            "div"
-          );
-
-
-        item.className =
-          "music-item";
-
-
-        const nameElement =
-          document.createElement(
-            "div"
-          );
-
-
-        nameElement.className =
-          "music-name";
-
-
-        nameElement.textContent =
-          displayName(file);
-
-
-        const playButton =
-          document.createElement(
-            "button"
-          );
-
-
-        playButton.className =
-          "music-button";
-
-
-        playButton.textContent =
-          "▶";
-
-
-        playButton.disabled =
-          !connected;
-
-
-        playButton.onclick =
-          () => {
-
-            playMusic(file);
-
-          };
-
-
-        const pauseButton =
-          document.createElement(
-            "button"
-          );
-
-
-        pauseButton.className =
-          "music-button";
-
-
-        pauseButton.textContent =
-          "⏸";
-
-
-        pauseButton.disabled =
-          !connected;
-
-
-        pauseButton.onclick =
-          () => {
-
-            pauseMusic();
-
-          };
-
-
-        const repeatButton =
-          document.createElement(
-            "button"
-          );
-
-
-        repeatButton.className =
-          "music-button";
-
-
-        repeatButton.textContent =
-          "🔁";
-
-
-        repeatButton.disabled =
-          !connected;
-
-
-        let repeating = false;
-
-
-        repeatButton.onclick =
-          () => {
-
-            repeating =
-              !repeating;
-
-
-            repeatButton.classList.toggle(
-              "repeat-active",
-              repeating
-            );
-
-
-            toggleRepeat(
-              file,
-              repeating
-            );
-
-          };
-
-
-        item.appendChild(
-          nameElement
-        );
-
-
-        item.appendChild(
-          playButton
-        );
-
-
-        item.appendChild(
-          pauseButton
-        );
-
-
-        item.appendChild(
-          repeatButton
-        );
-
-
-        musicContainer.appendChild(
-          item
+        createMusicItem(
+          file,
+          false
         );
 
       });
+
+    }
+
+
+    // --------------------------------------------------
+    // CREATE MUSIC ITEM
+    // --------------------------------------------------
+
+    function createMusicItem(
+      file,
+      temporary
+    ) {
+
+      const item =
+        document.createElement(
+          "div"
+        );
+
+
+      item.className =
+        "music-item";
+
+
+      const nameElement =
+        document.createElement(
+          "div"
+        );
+
+
+      nameElement.className =
+        "music-name";
+
+
+      if (temporary) {
+
+        nameElement.classList.add(
+          "temporary-music-name"
+        );
+
+      }
+
+
+      nameElement.textContent =
+        displayName(file);
+
+
+      if (temporary) {
+
+        const label =
+          document.createElement(
+            "span"
+          );
+
+
+        label.className =
+          "temporary-label";
+
+
+        label.textContent =
+          "TEMP";
+
+
+        nameElement.appendChild(
+          label
+        );
+
+      }
+
+
+      const playButton =
+        document.createElement(
+          "button"
+        );
+
+
+      playButton.className =
+        "music-button";
+
+
+      playButton.textContent =
+        "▶";
+
+
+      playButton.disabled =
+        !connected;
+
+
+      playButton.onclick =
+        () => {
+
+          playMusic(file);
+
+        };
+
+
+      const pauseButton =
+        document.createElement(
+          "button"
+        );
+
+
+      pauseButton.className =
+        "music-button";
+
+
+      pauseButton.textContent =
+        "⏸";
+
+
+      pauseButton.disabled =
+        !connected;
+
+
+      pauseButton.onclick =
+        () => {
+
+          pauseMusic();
+
+        };
+
+
+      const repeatButton =
+        document.createElement(
+          "button"
+        );
+
+
+      repeatButton.className =
+        "music-button";
+
+
+      repeatButton.textContent =
+        "🔁";
+
+
+      repeatButton.disabled =
+        !connected;
+
+
+      let repeating = false;
+
+
+      repeatButton.onclick =
+        () => {
+
+          repeating =
+            !repeating;
+
+
+          repeatButton.classList.toggle(
+            "repeat-active",
+            repeating
+          );
+
+
+          toggleRepeat(
+            file,
+            repeating
+          );
+
+        };
+
+
+      item.appendChild(
+        nameElement
+      );
+
+
+      item.appendChild(
+        playButton
+      );
+
+
+      item.appendChild(
+        pauseButton
+      );
+
+
+      item.appendChild(
+        repeatButton
+      );
+
+
+      musicContainer.appendChild(
+        item
+      );
+
+    }
+
+
+    // --------------------------------------------------
+    // TEMPORARY SOUND FOLDER
+    // --------------------------------------------------
+
+    soundFolderInput.onchange =
+      event => {
+
+        const files =
+          Array.from(
+            event.target.files
+          );
+
+
+        /*
+         * Release the old temporary sound
+         * object URLs before replacing them.
+         */
+
+        temporarySounds.forEach(
+          file => {
+
+            URL.revokeObjectURL(
+              file.url
+            );
+
+          }
+        );
+
+
+        temporarySounds = [];
+
+
+        files
+          .filter(
+            file =>
+              audioExtensions.test(
+                file.name
+              )
+          )
+          .forEach(file => {
+
+            temporarySounds.push({
+
+              name: file.name,
+
+              url:
+                URL.createObjectURL(
+                  file
+                ),
+
+              file: file
+
+            });
+
+          });
+
+
+        renderTemporarySounds();
+
+
+        soundFolderStatus.textContent =
+          temporarySounds.length +
+          " temporary sound" +
+          (
+            temporarySounds.length === 1
+              ? ""
+              : "s"
+          ) +
+          " loaded.";
+
+      };
+
+
+    // --------------------------------------------------
+    // RENDER TEMPORARY SOUNDS
+    // --------------------------------------------------
+
+    function renderTemporarySounds() {
+
+      document
+        .querySelectorAll(
+          ".temporary-sound-button"
+        )
+        .forEach(
+          button =>
+            button.remove()
+        );
+
+
+      temporarySounds.forEach(
+        temporaryFile => {
+
+          const button =
+            document.createElement(
+              "button"
+            );
+
+
+          button.className =
+            "sound-button temporary-sound-button";
+
+
+          button.textContent =
+            displayName(
+              temporaryFile.name
+            );
+
+
+          button.disabled =
+            !connected;
+
+
+          button.onclick =
+            () => {
+
+              playSound(
+                temporaryFile.name
+              );
+
+            };
+
+
+          soundsContainer.appendChild(
+            button
+          );
+
+        }
+      );
+
+    }
+
+
+    // --------------------------------------------------
+    // TEMPORARY MUSIC FOLDER
+    // --------------------------------------------------
+
+    musicFolderInput.onchange =
+      event => {
+
+        const files =
+          Array.from(
+            event.target.files
+          );
+
+
+        /*
+         * Release old temporary music
+         * object URLs.
+         */
+
+        temporaryMusic.forEach(
+          file => {
+
+            URL.revokeObjectURL(
+              file.url
+            );
+
+          }
+        );
+
+
+        if (temporaryMusicAudio) {
+
+          temporaryMusicAudio.pause();
+
+          temporaryMusicAudio =
+            null;
+
+        }
+
+
+        temporaryMusic = [];
+
+
+        files
+          .filter(
+            file =>
+              audioExtensions.test(
+                file.name
+              )
+          )
+          .forEach(file => {
+
+            temporaryMusic.push({
+
+              name: file.name,
+
+              url:
+                URL.createObjectURL(
+                  file
+                ),
+
+              file: file
+
+            });
+
+          });
+
+
+        renderTemporaryMusic();
+
+
+        musicFolderStatus.textContent =
+          temporaryMusic.length +
+          " temporary music file" +
+          (
+            temporaryMusic.length === 1
+              ? ""
+              : "s"
+          ) +
+          " loaded.";
+
+      };
+
+
+    // --------------------------------------------------
+    // RENDER TEMPORARY MUSIC
+    // --------------------------------------------------
+
+    function renderTemporaryMusic() {
+
+      document
+        .querySelectorAll(
+          ".temporary-music-item"
+        )
+        .forEach(
+          item =>
+            item.remove()
+        );
+
+
+      temporaryMusic.forEach(
+        temporaryFile => {
+
+          const item =
+            document.createElement(
+              "div"
+            );
+
+
+          item.className =
+            "temporary-music-item";
+
+
+          item.classList.add(
+            "music-item"
+          );
+
+
+          const nameElement =
+            document.createElement(
+              "div"
+            );
+
+
+          nameElement.className =
+            "music-name";
+
+
+          nameElement.classList.add(
+            "temporary-music-name"
+          );
+
+
+          nameElement.textContent =
+            displayName(
+              temporaryFile.name
+            );
+
+
+          const label =
+            document.createElement(
+              "span"
+            );
+
+
+          label.className =
+            "temporary-label";
+
+
+          label.textContent =
+            "TEMP";
+
+
+          nameElement.appendChild(
+            label
+          );
+
+
+          const playButton =
+            document.createElement(
+              "button"
+            );
+
+
+          playButton.className =
+            "music-button";
+
+
+          playButton.textContent =
+            "▶";
+
+
+          playButton.disabled =
+            !connected;
+
+
+          playButton.onclick =
+            () => {
+
+              playMusic(
+                temporaryFile.name
+              );
+
+            };
+
+
+          const pauseButton =
+            document.createElement(
+              "button"
+            );
+
+
+          pauseButton.className =
+            "music-button";
+
+
+          pauseButton.textContent =
+            "⏸";
+
+
+          pauseButton.disabled =
+            !connected;
+
+
+          pauseButton.onclick =
+            () => {
+
+              pauseMusic();
+
+            };
+
+
+          const repeatButton =
+            document.createElement(
+              "button"
+            );
+
+
+          repeatButton.className =
+            "music-button";
+
+
+          repeatButton.textContent =
+            "🔁";
+
+
+          repeatButton.disabled =
+            !connected;
+
+
+          let repeating = true;
+
+
+          repeatButton.classList.add(
+            "repeat-active"
+          );
+
+
+          repeatButton.onclick =
+            () => {
+
+              repeating =
+                !repeating;
+
+
+              repeatButton.classList.toggle(
+                "repeat-active",
+                repeating
+              );
+
+
+              toggleRepeat(
+                temporaryFile.name,
+                repeating
+              );
+
+            };
+
+
+          item.appendChild(
+            nameElement
+          );
+
+
+          item.appendChild(
+            playButton
+          );
+
+
+          item.appendChild(
+            pauseButton
+          );
+
+
+          item.appendChild(
+            repeatButton
+          );
+
+
+          musicContainer.appendChild(
+            item
+          );
+
+        }
+      );
 
     }
 
