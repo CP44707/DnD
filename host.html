@@ -11,8 +11,60 @@
       color: white;
     }
 
+    input {
+      padding: 12px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+
+    button {
+      font-family: inherit;
+    }
+
     #status {
       margin-bottom: 20px;
+      white-space: pre-wrap;
+    }
+
+    #loginPanel {
+      max-width: 400px;
+      background: #2d2d2d;
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    #loginPanel input {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    #loginButton,
+    #logoutButton,
+    #newCodeButton,
+    #copyCodeButton {
+      padding: 12px 18px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-right: 6px;
+      margin-bottom: 10px;
+    }
+
+    #hostPanel {
+      display: none;
+    }
+
+    #sessionPanel {
+      background: #333;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 25px;
+    }
+
+    #sessionCode {
+      font-size: 34px;
+      font-weight: bold;
+      letter-spacing: 6px;
+      color: #7cff7c;
     }
 
     #columns {
@@ -89,28 +141,95 @@
 
 <body>
 
-  <h1>Soundboard</h1>
+  <h1>🎲 Host Soundboard</h1>
 
-  <p id="status">Connecting...</p>
+  <p id="status">Please log in.</p>
 
-  <div id="columns">
 
-    <!-- SOUNDS -->
-    <div class="column">
+  <!-- LOGIN -->
 
-      <h2>🔊 Sounds</h2>
+  <div id="loginPanel">
 
-      <div id="sounds"></div>
+    <h2>Host Login</h2>
+
+    <input
+      id="email"
+      type="email"
+      placeholder="Email"
+      autocomplete="username"
+    >
+
+    <input
+      id="password"
+      type="password"
+      placeholder="Password"
+      autocomplete="current-password"
+    >
+
+    <button id="loginButton">
+      Login
+    </button>
+
+    <p id="loginMessage"></p>
+
+  </div>
+
+
+  <!-- HOST -->
+
+  <div id="hostPanel">
+
+    <div id="sessionPanel">
+
+      <h2>🎲 Session</h2>
+
+      <p>
+        Give this code to your players:
+      </p>
+
+      <div id="sessionCode">
+        --------
+      </div>
+
+      <br>
+
+      <button id="copyCodeButton">
+        📋 Copy Code
+      </button>
+
+      <button id="newCodeButton">
+        🔄 New Code
+      </button>
+
+      <button id="logoutButton">
+        Logout
+      </button>
 
     </div>
 
 
-    <!-- MUSIC -->
-    <div class="column">
+    <div id="columns">
 
-      <h2>🎵 Music</h2>
+      <!-- SOUNDS -->
 
-      <div id="music"></div>
+      <div class="column">
+
+        <h2>🔊 Sounds</h2>
+
+        <div id="sounds"></div>
+
+      </div>
+
+
+      <!-- MUSIC -->
+
+      <div class="column">
+
+        <h2>🎵 Music</h2>
+
+        <div id="music"></div>
+
+      </div>
 
     </div>
 
@@ -119,154 +238,463 @@
 
   <script type="module">
 
-    import { createClient }
-      from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+    import {
+      createClient
+    } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 
     // --------------------------------------------------
     // SUPABASE
     // --------------------------------------------------
 
-    const keys = await fetch("keys.json").then(r => r.json());
-
-    const supabase = createClient(
-      keys.supabaseUrl,
-      keys.supabaseKey
-    );
+    const keys =
+      await fetch("keys.json")
+        .then(r => r.json());
 
 
-    const status = document.getElementById("status");
-    const soundsContainer = document.getElementById("sounds");
-    const musicContainer = document.getElementById("music");
+    const supabase =
+      createClient(
+        keys.supabaseUrl,
+        keys.supabaseKey
+      );
 
+
+    // --------------------------------------------------
+    // ELEMENTS
+    // --------------------------------------------------
+
+    const status =
+      document.getElementById("status");
+
+    const loginPanel =
+      document.getElementById("loginPanel");
+
+    const hostPanel =
+      document.getElementById("hostPanel");
+
+    const loginButton =
+      document.getElementById("loginButton");
+
+    const logoutButton =
+      document.getElementById("logoutButton");
+
+    const newCodeButton =
+      document.getElementById("newCodeButton");
+
+    const copyCodeButton =
+      document.getElementById("copyCodeButton");
+
+    const sessionCode =
+      document.getElementById("sessionCode");
+
+    const soundsContainer =
+      document.getElementById("sounds");
+
+    const musicContainer =
+      document.getElementById("music");
+
+
+    // --------------------------------------------------
+    // STATE
+    // --------------------------------------------------
+
+    let channel = null;
 
     let connected = false;
 
-
-    // IMPORTANT:
-    // Host and player use the same channel.
-    const channel = supabase.channel("soundboard");
+    let sessionCodeValue = null;
 
 
     // --------------------------------------------------
-    // CONNECT
+    // NAME FORMAT
     // --------------------------------------------------
 
-    channel.subscribe((state, error) => {
+    function displayName(file) {
 
-      console.log("Supabase:", state);
-      console.log("Error:", error);
+      return file
+        .replace(
+          /\.(mp3|wav|ogg|m4a)$/i,
+          ""
+        )
+        .replace(
+          /[-_]/g,
+          " "
+        )
+        .replace(
+          /\b\w/g,
+          letter => letter.toUpperCase()
+        );
+
+    }
 
 
-      if (state === "SUBSCRIBED") {
+    // --------------------------------------------------
+    // GENERATE SESSION CODE
+    // --------------------------------------------------
 
-        connected = true;
+    function generateCode() {
 
-        status.textContent = "🟢 Connected";
+      const characters =
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+      let code = "";
+
+      for (let i = 0; i < 8; i++) {
+
+        code +=
+          characters[
+            Math.floor(
+              Math.random() *
+              characters.length
+            )
+          ];
+
+      }
+
+      return code;
+
+    }
+
+
+    // --------------------------------------------------
+    // LOGIN
+    // --------------------------------------------------
+
+    loginButton.onclick =
+      async () => {
+
+        const email =
+          document
+            .getElementById("email")
+            .value
+            .trim();
+
+        const password =
+          document
+            .getElementById("password")
+            .value;
+
+
+        if (!email || !password) {
+
+          document
+            .getElementById("loginMessage")
+            .textContent =
+            "Enter your email and password.";
+
+          return;
+
+        }
+
+
+        loginButton.disabled = true;
 
         document
-          .querySelectorAll("button")
-          .forEach(button => {
-            button.disabled = false;
-          });
-
-      }
+          .getElementById("loginMessage")
+          .textContent =
+          "Logging in...";
 
 
-      if (state === "CHANNEL_ERROR") {
+        const {
+          data,
+          error
+        } =
+          await supabase.auth
+            .signInWithPassword({
+              email,
+              password
+            });
 
-        connected = false;
 
-        status.textContent = "🔴 Connection error";
-
-        console.error(error);
-
-      }
+        loginButton.disabled = false;
 
 
-      if (state === "TIMED_OUT") {
+        if (error) {
 
-        connected = false;
+          document
+            .getElementById("loginMessage")
+            .textContent =
+            "Login failed: " +
+            error.message;
 
-        status.textContent = "🔴 Connection timed out";
+          return;
 
-      }
+        }
 
-    });
+
+        document
+          .getElementById("loginMessage")
+          .textContent = "";
+
+
+        showHost();
+
+      };
 
 
     // --------------------------------------------------
-    // SEND SOUND
+    // SHOW HOST
+    // --------------------------------------------------
+
+    async function showHost() {
+
+      loginPanel.style.display =
+        "none";
+
+      hostPanel.style.display =
+        "block";
+
+
+      status.textContent =
+        "🟡 Creating session...";
+
+
+      await loadSounds();
+
+      await loadMusic();
+
+      await createSession();
+
+    }
+
+
+    // --------------------------------------------------
+    // CREATE SESSION
+    // --------------------------------------------------
+
+    async function createSession() {
+
+      if (channel) {
+
+        await supabase.removeChannel(
+          channel
+        );
+
+        channel = null;
+
+      }
+
+
+      connected = false;
+
+
+      sessionCodeValue =
+        generateCode();
+
+
+      sessionCode.textContent =
+        sessionCodeValue;
+
+
+      /*
+        IMPORTANT:
+
+        We are intentionally NOT storing
+        the session in a Supabase table.
+
+        The random code simply determines
+        the Realtime channel.
+      */
+
+      channel =
+        supabase.channel(
+          "soundboard-" +
+          sessionCodeValue
+        );
+
+
+      channel.subscribe(
+        (state, error) => {
+
+          console.log(
+            "Host:",
+            state,
+            error
+          );
+
+
+          if (
+            state === "SUBSCRIBED"
+          ) {
+
+            connected = true;
+
+
+            status.textContent =
+              "🟢 Connected\n" +
+              "Session code: " +
+              sessionCodeValue;
+
+          }
+
+
+          if (
+            state === "CHANNEL_ERROR"
+          ) {
+
+            connected = false;
+
+            status.textContent =
+              "🔴 Connection error.";
+
+            console.error(error);
+
+          }
+
+
+          if (
+            state === "TIMED_OUT"
+          ) {
+
+            connected = false;
+
+            status.textContent =
+              "🔴 Connection timed out.";
+
+          }
+
+        }
+      );
+
+    }
+
+
+    // --------------------------------------------------
+    // COPY CODE
+    // --------------------------------------------------
+
+    copyCodeButton.onclick =
+      async () => {
+
+        if (!sessionCodeValue)
+          return;
+
+
+        await navigator
+          .clipboard
+          .writeText(
+            sessionCodeValue
+          );
+
+
+        copyCodeButton.textContent =
+          "✅ Copied!";
+
+
+        setTimeout(() => {
+
+          copyCodeButton.textContent =
+            "📋 Copy Code";
+
+        }, 1500);
+
+      };
+
+
+    // --------------------------------------------------
+    // NEW CODE
+    // --------------------------------------------------
+
+    newCodeButton.onclick =
+      async () => {
+
+        newCodeButton.disabled =
+          true;
+
+
+        await createSession();
+
+
+        newCodeButton.disabled =
+          false;
+
+      };
+
+
+    // --------------------------------------------------
+    // PLAY SOUND
     // --------------------------------------------------
 
     async function playSound(file) {
 
-      if (!connected) {
-        console.warn("Not connected.");
+      if (
+        !connected ||
+        !channel
+      ) {
+
         return;
+
       }
 
 
-      console.log("Sending sound:", file);
-
-
-      const result = await channel.send({
+      await channel.send({
 
         type: "broadcast",
 
         event: "play-sound",
 
         payload: {
+
+          source: "github",
+
           file: file
+
         }
 
       });
-
-
-      console.log("Sound result:", result);
 
     }
 
 
     // --------------------------------------------------
-    // SEND MUSIC
+    // PLAY MUSIC
     // --------------------------------------------------
 
     async function playMusic(file) {
 
-      if (!connected) {
-        console.warn("Not connected.");
+      if (
+        !connected ||
+        !channel
+      ) {
+
         return;
+
       }
 
 
-      console.log("Playing music:", file);
-
-
-      const result = await channel.send({
+      await channel.send({
 
         type: "broadcast",
 
         event: "play-music",
 
         payload: {
+
+          source: "github",
+
           file: file
+
         }
 
       });
 
-
-      console.log("Music result:", result);
-
     }
 
 
+    // --------------------------------------------------
+    // PAUSE MUSIC
+    // --------------------------------------------------
+
     async function pauseMusic() {
 
-      if (!connected) return;
+      if (
+        !connected ||
+        !channel
+      ) {
 
+        return;
 
-      console.log("Pausing music");
+      }
 
 
       await channel.send({
@@ -282,16 +710,23 @@
     }
 
 
-    async function toggleRepeat(file, repeat) {
+    // --------------------------------------------------
+    // REPEAT MUSIC
+    // --------------------------------------------------
 
-      if (!connected) return;
+    async function toggleRepeat(
+      file,
+      repeat
+    ) {
 
+      if (
+        !connected ||
+        !channel
+      ) {
 
-      console.log(
-        "Repeat:",
-        file,
-        repeat
-      );
+        return;
+
+      }
 
 
       await channel.send({
@@ -301,8 +736,13 @@
         event: "repeat-music",
 
         payload: {
+
+          source: "github",
+
           file: file,
+
           repeat: repeat
+
         }
 
       });
@@ -314,145 +754,303 @@
     // LOAD SOUNDS
     // --------------------------------------------------
 
-    const files = await fetch("sounds.json").then(r => r.json());
+    async function loadSounds() {
+
+      soundsContainer.innerHTML =
+        "";
 
 
-    files.forEach(file => {
-
-      const button = document.createElement("button");
-
-      button.className = "sound-button";
+      const files =
+        await fetch("sounds.json")
+          .then(r => r.json());
 
 
-      const name = file
-        .replace(/\.(mp3|wav|ogg|m4a)$/i, "")
-        .replace(/[-_]/g, " ")
-        .replace(/\b\w/g, letter => letter.toUpperCase());
+      files.forEach(file => {
+
+        const button =
+          document.createElement(
+            "button"
+          );
 
 
-      button.textContent = name;
-
-      button.disabled = true;
-
-
-      button.onclick = () => {
-
-        playSound(file);
-
-      };
+        button.className =
+          "sound-button";
 
 
-      soundsContainer.appendChild(button);
+        button.textContent =
+          displayName(file);
 
-    });
+
+        button.disabled =
+          true;
+
+
+        button.onclick =
+          () => {
+
+            playSound(file);
+
+          };
+
+
+        soundsContainer.appendChild(
+          button
+        );
+
+      });
+
+    }
 
 
     // --------------------------------------------------
     // LOAD MUSIC
     // --------------------------------------------------
 
-    const musicFiles =
-      await fetch("music.json").then(r => r.json());
+    async function loadMusic() {
+
+      musicContainer.innerHTML =
+        "";
 
 
-    musicFiles.forEach(file => {
-
-      const item = document.createElement("div");
-
-      item.className = "music-item";
+      const files =
+        await fetch("music.json")
+          .then(r => r.json());
 
 
-      const name = file
-        .replace(/\.(mp3|wav|ogg|m4a)$/i, "")
-        .replace(/[-_]/g, " ")
-        .replace(/\b\w/g, letter => letter.toUpperCase());
+      files.forEach(file => {
+
+        const item =
+          document.createElement(
+            "div"
+          );
 
 
-      // Song name
-      const nameElement = document.createElement("div");
-
-      nameElement.className = "music-name";
-
-      nameElement.textContent = name;
+        item.className =
+          "music-item";
 
 
-      // Play button
-      const playButton = document.createElement("button");
-
-      playButton.className = "music-button";
-
-      playButton.textContent = "▶";
-
-      playButton.disabled = true;
+        const name =
+          document.createElement(
+            "div"
+          );
 
 
-      playButton.onclick = () => {
-
-        playMusic(file);
-
-      };
+        name.className =
+          "music-name";
 
 
-      // Pause button
-      const pauseButton = document.createElement("button");
-
-      pauseButton.className = "music-button";
-
-      pauseButton.textContent = "⏸";
-
-      pauseButton.disabled = true;
+        name.textContent =
+          displayName(file);
 
 
-      pauseButton.onclick = () => {
+        // PLAY
 
-        pauseMusic();
-
-      };
-
-
-      // Repeat button
-      const repeatButton = document.createElement("button");
-
-      repeatButton.className = "music-button";
-
-      repeatButton.textContent = "🔁";
-
-      repeatButton.disabled = true;
+        const playButton =
+          document.createElement(
+            "button"
+          );
 
 
-      let repeating = false;
+        playButton.className =
+          "music-button";
 
 
-      repeatButton.onclick = () => {
+        playButton.textContent =
+          "▶";
 
-        repeating = !repeating;
 
-        repeatButton.classList.toggle(
-          "repeat-active",
-          repeating
+        playButton.disabled =
+          true;
+
+
+        playButton.onclick =
+          () => {
+
+            playMusic(file);
+
+          };
+
+
+        // PAUSE
+
+        const pauseButton =
+          document.createElement(
+            "button"
+          );
+
+
+        pauseButton.className =
+          "music-button";
+
+
+        pauseButton.textContent =
+          "⏸";
+
+
+        pauseButton.disabled =
+          true;
+
+
+        pauseButton.onclick =
+          () => {
+
+            pauseMusic();
+
+          };
+
+
+        // REPEAT
+
+        const repeatButton =
+          document.createElement(
+            "button"
+          );
+
+
+        repeatButton.className =
+          "music-button";
+
+
+        repeatButton.textContent =
+          "🔁";
+
+
+        repeatButton.disabled =
+          true;
+
+
+        let repeating = false;
+
+
+        repeatButton.onclick =
+          () => {
+
+            repeating =
+              !repeating;
+
+
+            repeatButton.classList.toggle(
+              "repeat-active",
+              repeating
+            );
+
+
+            toggleRepeat(
+              file,
+              repeating
+            );
+
+          };
+
+
+        item.appendChild(name);
+
+        item.appendChild(playButton);
+
+        item.appendChild(pauseButton);
+
+        item.appendChild(repeatButton);
+
+
+        musicContainer.appendChild(
+          item
         );
 
+      });
 
-        toggleRepeat(
-          file,
-          repeating
-        );
+    }
+
+
+    // --------------------------------------------------
+    // ENABLE CONTROLS
+    // --------------------------------------------------
+
+    function enableControls() {
+
+      document
+        .querySelectorAll(
+          "#hostPanel button"
+        )
+        .forEach(button => {
+
+          button.disabled = false;
+
+        });
+
+    }
+
+
+    // --------------------------------------------------
+    // LOGOUT
+    // --------------------------------------------------
+
+    logoutButton.onclick =
+      async () => {
+
+        if (channel) {
+
+          await supabase
+            .removeChannel(channel);
+
+          channel = null;
+
+        }
+
+
+        await supabase.auth
+          .signOut();
+
+
+        connected = false;
+
+        sessionCodeValue = null;
+
+
+        hostPanel.style.display =
+          "none";
+
+        loginPanel.style.display =
+          "block";
+
+
+        sessionCode.textContent =
+          "--------";
+
+
+        status.textContent =
+          "Please log in.";
 
       };
 
 
-      item.appendChild(nameElement);
+    // --------------------------------------------------
+    // CHECK EXISTING LOGIN
+    // --------------------------------------------------
 
-      item.appendChild(playButton);
+    const {
+      data: {
+        session
+      }
+    } =
+      await supabase.auth
+        .getSession();
 
-      item.appendChild(pauseButton);
 
-      item.appendChild(repeatButton);
+    if (session) {
+
+      showHost();
+
+    }
 
 
-      musicContainer.appendChild(item);
+    // --------------------------------------------------
+    // ENABLE BUTTONS
+    // --------------------------------------------------
 
-    });
+    setTimeout(
+      enableControls,
+      500
+    );
 
   </script>
 
