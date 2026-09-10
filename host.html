@@ -85,6 +85,26 @@
     .upload-row {
       margin-bottom: 15px;
     }
+
+    .music-options {
+      margin: 10px 0 15px 0;
+      padding: 10px;
+      background: #444;
+      border-radius: 5px;
+    }
+
+    .music-options label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .music-options input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+    }
   </style>
 </head>
 
@@ -189,6 +209,18 @@
 
     </div>
 
+    <div class="music-options">
+
+      <label>
+        <input
+          id="musicLoop"
+          type="checkbox"
+        >
+        🔁 Loop Music
+      </label>
+
+    </div>
+
     <div id="music"></div>
 
   </div>
@@ -245,6 +277,9 @@ const music =
 const userInfo =
   document.getElementById("userInfo");
 
+const musicLoop =
+  document.getElementById("musicLoop");
+
 
 // --------------------------------------------------
 // STATE
@@ -257,6 +292,15 @@ let sessionCode = null;
 let uploadedSounds = [];
 
 let uploadedMusic = [];
+
+
+// --------------------------------------------------
+// MUSIC LOOP SETTINGS
+// --------------------------------------------------
+
+const MUSIC_FADE_DURATION = 3;
+
+const MUSIC_LOOP_OVERLAP = 3;
 
 
 // --------------------------------------------------
@@ -764,7 +808,15 @@ async function playMusic(song) {
 
         file: song.name,
 
-        url: url
+        url: url,
+
+        loop: musicLoop.checked,
+
+        fadeIn: MUSIC_FADE_DURATION,
+
+        fadeOut: MUSIC_FADE_DURATION,
+
+        loopOverlap: MUSIC_LOOP_OVERLAP
 
       }
 
@@ -1130,14 +1182,14 @@ document
       data,
       error
     } =
-      await supabase.auth
-        .signInWithPassword({
+    await supabase.auth
+      .signInWithPassword({
 
-          email,
+        email,
 
-          password
+        password
 
-        });
+      });
 
 
     if (error) {
