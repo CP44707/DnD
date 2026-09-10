@@ -151,6 +151,17 @@ let audioEnabled = false;
 
 let musicAudio = null;
 
+let currentMusicFile = null;
+
+let currentMusicUrl = null;
+
+let repeatMusic = false;
+
+// Start the next copy this many seconds early.
+const REPEAT_OVERLAP = 0.25;
+
+let repeatTimer = null;
+
 
 // --------------------------------------------------
 // ENABLE AUDIO
@@ -202,6 +213,191 @@ function playUrl(url) {
         "🔴 Audio playback failed.";
 
     });
+
+}
+
+
+// --------------------------------------------------
+// SCHEDULE REPEAT
+// --------------------------------------------------
+
+function scheduleRepeat() {
+
+  clearTimeout(repeatTimer);
+
+  if (!musicAudio) return;
+
+  if (!repeatMusic) return;
+
+
+  if (!Number.isFinite(musicAudio.duration)) {
+
+    musicAudio.addEventListener(
+      "loadedmetadata",
+      () => {
+
+        scheduleRepeat();
+
+      },
+      { once: true }
+    );
+
+    return;
+
+  }
+
+
+  // Wait until we are 0.25 seconds
+  // from the end of the song.
+  const remaining =
+    musicAudio.duration -
+    musicAudio.currentTime -
+    REPEAT_OVERLAP;
+
+
+  const delay =
+    Math.max(
+      0,
+      remaining * 1000
+    );
+
+
+  repeatTimer =
+    setTimeout(() => {
+
+      repeatSong();
+
+    }, delay);
+
+}
+
+
+// --------------------------------------------------
+// REPEAT SONG
+// --------------------------------------------------
+
+function repeatSong() {
+
+  if (!musicAudio) return;
+
+  if (!repeatMusic) return;
+
+  if (!currentMusicUrl) return;
+
+
+  const oldAudio =
+    musicAudio;
+
+
+  // Start another copy of the exact same
+  // Supabase-signed URL.
+  const newAudio =
+    new Audio(
+      currentMusicUrl
+    );
+
+
+  newAudio.volume =
+    1;
+
+
+  // Start the new copy.
+  newAudio.play()
+    .catch(error => {
+
+      console.error(
+        "Repeat playback failed:",
+        error
+      );
+
+    });
+
+
+  // Fade the old copy out during the
+  // 0.25 second overlap.
+  const fadeSteps =
+    10;
+
+  let step =
+    0;
+
+
+  const fadeTimer =
+    setInterval(() => {
+
+      step++;
+
+
+      oldAudio.volume =
+        Math.max(
+          0,
+          1 - (step / fadeSteps)
+        );
+
+
+      if (step >= fadeSteps) {
+
+        clearInterval(
+          fadeTimer
+        );
+
+
+        oldAudio.pause();
+
+        oldAudio.currentTime =
+          0;
+
+        oldAudio.volume =
+          1;
+
+      }
+
+    }, (REPEAT_OVERLAP * 1000) / fadeSteps);
+
+
+  musicAudio =
+    newAudio;
+
+
+  // Schedule the next repeat.
+  newAudio.addEventListener(
+    "loadedmetadata",
+    () => {
+
+      scheduleRepeat();
+
+    },
+    { once: true }
+  );
+
+}
+
+
+// --------------------------------------------------
+// STOP MUSIC
+// --------------------------------------------------
+
+function stopMusic() {
+
+  clearTimeout(
+    repeatTimer
+  );
+
+  repeatTimer =
+    null;
+
+
+  if (musicAudio) {
+
+    musicAudio.pause();
+
+    musicAudio.currentTime =
+      0;
+
+  }
+
+  musicAudio =
+    null;
 
 }
 
@@ -309,10 +505,42 @@ joinButton.onclick =
         }
 
 
+        currentMusicFile =
+          payload.file;
+
+        currentMusicUrl =
+          payload.url;
+
+
+        stopMusic();
+
+
         musicAudio =
           new Audio(
             payload.url
           );
+
+
+        musicAudio.loop =
+          false;
+
+
+        musicAudio.onended =
+          () => {
+
+            console.log(
+              "Music ended."
+            );
+
+
+            if (!repeatMusic) {
+
+              status.textContent =
+                "🟢 Music finished";
+
+            }
+
+          };
 
 
         status.textContent =
@@ -331,6 +559,11 @@ joinButton.onclick =
 
 
         musicAudio.play()
+          .then(() => {
+
+            scheduleRepeat();
+
+          })
           .catch(error => {
 
             console.error(error);
@@ -339,6 +572,105 @@ joinButton.onclick =
               "🔴 Music playback failed.";
 
           });
+
+      }
+    );
+
+
+    // MUSIC PAUSE
+
+    channel.on(
+      "broadcast",
+      {
+        event: "pause-music"
+      },
+      () => {
+
+        console.log(
+          "MUSIC PAUSE"
+        );
+
+
+        if (musicAudio) {
+
+          musicAudio.pause();
+
+          clearTimeout(
+            repeatTimer
+          );
+
+          repeatTimer =
+            null;
+
+
+          status.textContent =
+            "⏸ Music paused";
+
+        }
+
+      }
+    );
+
+
+    // MUSIC REPEAT
+
+    channel.on(
+      "broadcast",
+      {
+        event: "repeat-music"
+      },
+      message => {
+
+        console.log(
+          "MUSIC REPEAT:",
+          message
+        );
+
+
+        const file =
+          message?.payload?.file;
+
+
+        const repeat =
+          message?.payload?.repeat;
+
+
+        // Only respond to the repeat command
+        // for the currently playing song.
+        if (
+          file &&
+          currentMusicFile !== file
+        ) {
+
+          return;
+
+        }
+
+
+        repeatMusic =
+          !!repeat;
+
+
+        if (repeatMusic) {
+
+          scheduleRepeat();
+
+        } else {
+
+          clearTimeout(
+            repeatTimer
+          );
+
+          repeatTimer =
+            null;
+
+        }
+
+
+        status.textContent =
+          repeatMusic
+            ? "🔁 Music repeating"
+            : "🎵 Repeat off";
 
       }
     );
@@ -397,13 +729,16 @@ joinButton.onclick =
 leaveButton.onclick =
   async () => {
 
-    if (musicAudio) {
+    stopMusic();
 
-      musicAudio.pause();
+    currentMusicFile =
+      null;
 
-      musicAudio = null;
+    currentMusicUrl =
+      null;
 
-    }
+    repeatMusic =
+      false;
 
 
     if (channel) {
@@ -412,7 +747,8 @@ leaveButton.onclick =
         channel
       );
 
-      channel = null;
+      channel =
+        null;
 
     }
 
