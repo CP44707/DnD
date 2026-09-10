@@ -1,1254 +1,458 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>Soundboard Player</title>
 
   <style>
     body {
       font-family: Arial, sans-serif;
-      padding: 30px;
       background: #222;
       color: white;
+      padding: 30px;
     }
 
-    input {
-      box-sizing: border-box;
+    input, button {
+      font: inherit;
+      padding: 12px;
+      margin: 5px 0;
     }
 
-    #status {
-      white-space: pre-wrap;
-      margin-bottom: 20px;
+    button {
+      cursor: pointer;
     }
 
-    #joinPanel {
-      max-width: 450px;
-      background: #2d2d2d;
+    #player {
+      display: none;
+    }
+
+    .box {
+      background: #333;
       padding: 25px;
       border-radius: 10px;
+      max-width: 500px;
     }
 
-    #sessionCode {
+    #code {
       width: 100%;
-      padding: 15px;
+      box-sizing: border-box;
       font-size: 24px;
       text-align: center;
       letter-spacing: 5px;
       text-transform: uppercase;
-      margin-bottom: 10px;
     }
 
-    #joinButton,
-    #enableAudio,
-    #leaveButton {
-      padding: 20px 30px;
-      font-size: 18px;
-      cursor: pointer;
-      margin-bottom: 10px;
-    }
-
-    #enableAudio.enabled {
-      background: #3a3;
-      color: white;
-    }
-
-    #playerPanel {
-      display: none;
+    #status {
+      white-space: pre-wrap;
     }
   </style>
 </head>
 
 <body>
 
-  <h1>🎧 Soundboard Player</h1>
+<h1>🎧 Soundboard Player</h1>
 
-  <p id="status">
-    Enter the host's session code.
-  </p>
-
-
-  <!-- JOIN -->
-
-  <div id="joinPanel">
-
-    <h2>Join Session</h2>
-
-    <input
-      id="sessionCode"
-      maxlength="8"
-      placeholder="ABCDEFGH"
-      autocomplete="off"
-    >
-
-    <br>
-
-    <button id="joinButton">
-      Join
-    </button>
-
-    <p id="joinMessage"></p>
-
-  </div>
+<p id="status">
+  Enter the host's session code.
+</p>
 
 
-  <!-- PLAYER -->
+<div id="join" class="box">
 
-  <div id="playerPanel">
+  <input
+    id="code"
+    maxlength="8"
+    placeholder="ABCDEFGH"
+  >
 
-    <button id="enableAudio">
-      🔊 Enable Audio
-    </button>
+  <br>
 
-    <button id="leaveButton">
-      Leave Session
-    </button>
+  <button id="joinButton">
+    Join Session
+  </button>
 
-  </div>
+  <p id="message"></p>
 
-
-  <script type="module">
-
-    import {
-      createClient
-    } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+</div>
 
 
-    // --------------------------------------------------
-    // SUPABASE
-    // --------------------------------------------------
+<div id="player" class="box">
 
-    const keys =
-      await fetch("keys.json")
-        .then(response => {
+  <h2>Connected</h2>
 
-          if (!response.ok) {
+  <button id="enableAudio">
+    🔊 Enable Audio
+  </button>
 
-            throw new Error(
-              "Could not load keys.json."
-            );
+  <button id="leave">
+    Leave Session
+  </button>
 
-          }
-
-          return response.json();
-
-        });
+</div>
 
 
-    if (
-      !keys.supabaseUrl ||
-      !keys.supabaseKey
-    ) {
+<script type="module">
 
-      throw new Error(
-        "keys.json is missing supabaseUrl or supabaseKey."
+import {
+  createClient
+} from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+
+// --------------------------------------------------
+// SUPABASE
+// --------------------------------------------------
+
+const keys =
+  await fetch("keys.json").then(r => r.json());
+
+const supabase =
+  createClient(
+    keys.supabaseUrl,
+    keys.supabaseKey
+  );
+
+
+// --------------------------------------------------
+// ELEMENTS
+// --------------------------------------------------
+
+const join =
+  document.getElementById("join");
+
+const player =
+  document.getElementById("player");
+
+const codeInput =
+  document.getElementById("code");
+
+const joinButton =
+  document.getElementById("joinButton");
+
+const enableAudio =
+  document.getElementById("enableAudio");
+
+const leaveButton =
+  document.getElementById("leave");
+
+const status =
+  document.getElementById("status");
+
+const message =
+  document.getElementById("message");
+
+
+// --------------------------------------------------
+// STATE
+// --------------------------------------------------
+
+let channel = null;
+
+let audioEnabled = false;
+
+let musicAudio = null;
+
+
+// --------------------------------------------------
+// ENABLE AUDIO
+// --------------------------------------------------
+
+enableAudio.onclick =
+  () => {
+
+    audioEnabled = true;
+
+    enableAudio.textContent =
+      "🔊 Audio Enabled";
+
+    status.textContent =
+      "🟢 Connected — waiting for sounds.";
+
+  };
+
+
+// --------------------------------------------------
+// PLAY URL
+// --------------------------------------------------
+
+function playUrl(url) {
+
+  if (!audioEnabled) {
+
+    status.textContent =
+      "⚠️ Sound received. Click Enable Audio.";
+
+    return;
+
+  }
+
+
+  const audio =
+    new Audio(url);
+
+
+  audio.play()
+    .catch(error => {
+
+      console.error(
+        "Audio playback failed:",
+        error
+      );
+
+      status.textContent =
+        "🔴 Audio playback failed.";
+
+    });
+
+}
+
+
+// --------------------------------------------------
+// JOIN
+// --------------------------------------------------
+
+joinButton.onclick =
+  async () => {
+
+    const code =
+      codeInput.value
+        .trim()
+        .toUpperCase();
+
+
+    if (code.length !== 8) {
+
+      message.textContent =
+        "Enter the 8-character code.";
+
+      return;
+
+    }
+
+
+    joinButton.disabled =
+      true;
+
+    message.textContent =
+      "Connecting...";
+
+
+    if (channel) {
+
+      await supabase.removeChannel(
+        channel
       );
 
     }
 
 
-    const supabase =
-      createClient(
-        keys.supabaseUrl,
-        keys.supabaseKey
+    channel =
+      supabase.channel(
+        "soundboard-" + code
       );
 
 
-    // --------------------------------------------------
-    // ELEMENTS
-    // --------------------------------------------------
+    // SOUND
 
-    const status =
-      document.getElementById("status");
+    channel.on(
+      "broadcast",
+      {
+        event: "play-sound"
+      },
+      message => {
 
-    const joinPanel =
-      document.getElementById("joinPanel");
+        const payload =
+          message.payload;
 
-    const playerPanel =
-      document.getElementById("playerPanel");
+        if (
+          payload &&
+          payload.url
+        ) {
 
-    const joinButton =
-      document.getElementById("joinButton");
+          status.textContent =
+            "🔊 Playing: " +
+            payload.file;
 
-    const joinMessage =
-      document.getElementById("joinMessage");
+          playUrl(payload.url);
 
-    const sessionCodeInput =
-      document.getElementById("sessionCode");
+        }
 
-    const enableButton =
-      document.getElementById("enableAudio");
-
-    const leaveButton =
-      document.getElementById("leaveButton");
-
-
-    // --------------------------------------------------
-    // STATE
-    // --------------------------------------------------
-
-    let channel = null;
-
-    let connected = false;
-
-    let audioEnabled = false;
-
-    let musicAudio = null;
-
-    let currentMusicFile = null;
-
-    let currentMusicUrl = null;
-
-    let repeatMusic = false;
-
-    const REPEAT_OVERLAP = 0.25;
-
-    let repeatTimer = null;
+      }
+    );
 
 
-    // --------------------------------------------------
-    // ENABLE AUDIO
-    // --------------------------------------------------
+    // MUSIC
 
-    enableButton.onclick =
-      () => {
+    channel.on(
+      "broadcast",
+      {
+        event: "play-music"
+      },
+      message => {
 
-        audioEnabled = true;
+        const payload =
+          message.payload;
 
-
-        enableButton.textContent =
-          "🔊 Audio Enabled";
-
-
-        enableButton.classList.add(
-          "enabled"
-        );
-
-
-        status.textContent =
-          connected
-            ? "🟢 Connected — waiting for sounds"
-            : "🟡 Audio enabled";
-
-      };
-
-
-    // --------------------------------------------------
-    // JOIN
-    // --------------------------------------------------
-
-    joinButton.onclick =
-      async () => {
-
-        const code =
-          sessionCodeInput
-            .value
-            .trim()
-            .toUpperCase();
-
-
-        if (code.length !== 8) {
-
-          joinMessage.textContent =
-            "Enter the 8-character session code.";
+        if (
+          !payload ||
+          !payload.url
+        ) {
 
           return;
 
         }
 
 
-        joinButton.disabled =
-          true;
+        if (musicAudio) {
 
-
-        joinMessage.textContent =
-          "Connecting...";
-
-
-        if (channel) {
-
-          try {
-
-            await supabase
-              .removeChannel(channel);
-
-          } catch (error) {
-
-            console.warn(
-              "Could not remove previous channel:",
-              error
-            );
-
-          }
-
-          channel = null;
+          musicAudio.pause();
 
         }
 
 
-        connected = false;
-
-
-        stopMusic();
-
-
-        channel =
-          supabase.channel(
-            "soundboard-" + code
+        musicAudio =
+          new Audio(
+            payload.url
           );
 
 
-        // --------------------------------------------------
-        // SOUND EFFECTS
-        // --------------------------------------------------
+        status.textContent =
+          "🎵 Playing: " +
+          payload.file;
 
-        channel.on(
-          "broadcast",
-          {
-            event: "play-sound"
-          },
-          message => {
 
-            console.log(
-              "SOUND:",
-              message
-            );
-
-
-            const payload =
-              message?.payload;
-
-
-            if (!payload) {
-
-              return;
-
-            }
-
-
-            if (!audioEnabled) {
-
-              status.textContent =
-                "⚠️ Sound received — click Enable Audio.";
-
-              return;
-
-            }
-
-
-            /*
-             * Built-in/static sound.
-             *
-             * Example:
-             *
-             * {
-             *   source: "github",
-             *   file: "airhorn.mp3"
-             * }
-             */
-
-            if (
-              payload.source ===
-              "github"
-            ) {
-
-              if (!payload.file) {
-
-                console.warn(
-                  "GitHub sound payload has no file."
-                );
-
-                return;
-
-              }
-
-
-              playGitHubSound(
-                payload.file
-              );
-
-
-              return;
-
-            }
-
-
-            /*
-             * Supabase Storage sound.
-             *
-             * Example:
-             *
-             * {
-             *   source: "supabase",
-             *   file: "laugh.mp3",
-             *   url: "https://...."
-             * }
-             */
-
-            if (
-              payload.source ===
-              "supabase"
-            ) {
-
-              if (!payload.url) {
-
-                console.error(
-                  "Supabase sound payload has no URL.",
-                  payload
-                );
-
-
-                status.textContent =
-                  "🔴 Uploaded sound has no playback URL.";
-
-                return;
-
-              }
-
-
-              playSupabaseSound(
-                payload.url
-              );
-
-
-              return;
-
-            }
-
-
-            console.warn(
-              "Unknown sound source:",
-              payload.source
-            );
-
-          }
-        );
-
-
-        // --------------------------------------------------
-        // MUSIC PLAY
-        // --------------------------------------------------
-
-        channel.on(
-          "broadcast",
-          {
-            event: "play-music"
-          },
-          async message => {
-
-            console.log(
-              "MUSIC:",
-              message
-            );
-
-
-            const payload =
-              message?.payload;
-
-
-            if (!payload) {
-
-              return;
-
-            }
-
-
-            if (!audioEnabled) {
-
-              status.textContent =
-                "⚠️ Music received — click Enable Audio.";
-
-              return;
-
-            }
-
-
-            /*
-             * Built-in/static music.
-             */
-
-            if (
-              payload.source ===
-              "github"
-            ) {
-
-              if (!payload.file) {
-
-                console.warn(
-                  "GitHub music payload has no file."
-                );
-
-                return;
-
-              }
-
-
-              currentMusicFile =
-                payload.file;
-
-              currentMusicUrl =
-                getGitHubMusicUrl(
-                  payload.file
-                );
-
-
-              playMusicUrl(
-                currentMusicUrl,
-                payload.file
-              );
-
-
-              return;
-
-            }
-
-
-            /*
-             * Supabase Storage music.
-             */
-
-            if (
-              payload.source ===
-              "supabase"
-            ) {
-
-              if (!payload.url) {
-
-                console.error(
-                  "Supabase music payload has no URL.",
-                  payload
-                );
-
-
-                status.textContent =
-                  "🔴 Uploaded music has no playback URL.";
-
-                return;
-
-              }
-
-
-              currentMusicFile =
-                payload.file ||
-                "Uploaded music";
-
-
-              currentMusicUrl =
-                payload.url;
-
-
-              playMusicUrl(
-                currentMusicUrl,
-                currentMusicFile
-              );
-
-
-              return;
-
-            }
-
-
-            console.warn(
-              "Unknown music source:",
-              payload.source
-            );
-
-          }
-        );
-
-
-        // --------------------------------------------------
-        // PAUSE MUSIC
-        // --------------------------------------------------
-
-        channel.on(
-          "broadcast",
-          {
-            event: "pause-music"
-          },
-          () => {
-
-            if (!musicAudio) {
-
-              return;
-
-            }
-
-
-            musicAudio.pause();
-
-
-            clearTimeout(
-              repeatTimer
-            );
-
-
-            repeatTimer =
-              null;
-
-
-            status.textContent =
-              "⏸ Music paused";
-
-          }
-        );
-
-
-        // --------------------------------------------------
-        // REPEAT MUSIC
-        // --------------------------------------------------
-
-        channel.on(
-          "broadcast",
-          {
-            event: "repeat-music"
-          },
-          message => {
-
-            const payload =
-              message?.payload;
-
-
-            if (!payload) {
-
-              return;
-
-            }
-
-
-            repeatMusic =
-              !!payload.repeat;
-
-
-            if (repeatMusic) {
-
-              scheduleRepeat();
-
-            } else {
-
-              clearTimeout(
-                repeatTimer
-              );
-
-              repeatTimer =
-                null;
-
-            }
-
-
-            status.textContent =
-              repeatMusic
-                ? "🔁 Music repeating"
-                : "🎵 Repeat off";
-
-          }
-        );
-
-
-        // --------------------------------------------------
-        // SUBSCRIBE
-        // --------------------------------------------------
-
-        channel.subscribe(
-          (state, error) => {
-
-            console.log(
-              "PLAYER:",
-              state,
-              error
-            );
-
-
-            if (
-              state === "SUBSCRIBED"
-            ) {
-
-              connected = true;
-
-
-              joinPanel.style.display =
-                "none";
-
-
-              playerPanel.style.display =
-                "block";
-
-
-              joinMessage.textContent =
-                "";
-
-
-              status.textContent =
-                audioEnabled
-                  ? "🟢 Connected — waiting for sounds"
-                  : "🟢 Connected — click Enable Audio";
-
-
-              return;
-
-            }
-
-
-            if (
-              state === "CHANNEL_ERROR"
-            ) {
-
-              connected = false;
-
-
-              status.textContent =
-                "🔴 Realtime connection error.";
-
-
-              joinMessage.textContent =
-                "Could not connect to that session.";
-
-
-              joinButton.disabled =
-                false;
-
-
-              console.error(
-                "Supabase channel error:",
-                error
-              );
-
-
-              return;
-
-            }
-
-
-            if (
-              state === "TIMED_OUT"
-            ) {
-
-              connected = false;
-
-
-              status.textContent =
-                "🔴 Connection timed out.";
-
-
-              joinButton.disabled =
-                false;
-
-
-              return;
-
-            }
-
-
-            if (
-              state === "CLOSED"
-            ) {
-
-              connected = false;
-
-            }
-
-          }
-        );
-
-      };
-
-
-    // --------------------------------------------------
-    // PLAY BUILT-IN GITHUB SOUND
-    // --------------------------------------------------
-
-    function playGitHubSound(file) {
-
-      const url =
-        "sounds/" +
-        encodeURIComponent(file);
-
-
-      const audio =
-        new Audio(url);
-
-
-      audio.play()
-        .catch(error => {
-
-          console.error(
-            "GitHub sound playback failed:",
-            error
-          );
-
+        if (!audioEnabled) {
 
           status.textContent =
-            "🔴 Sound playback failed.";
+            "⚠️ Music received. Click Enable Audio.";
 
-        });
+          return;
 
-    }
-
-
-    // --------------------------------------------------
-    // PLAY SUPABASE SOUND
-    // --------------------------------------------------
-
-    function playSupabaseSound(url) {
-
-      const audio =
-        new Audio(url);
+        }
 
 
-      audio.play()
-        .then(() => {
+        musicAudio.play()
+          .catch(error => {
 
-          status.textContent =
-            "🟢 Playing uploaded sound";
-
-        })
-        .catch(error => {
-
-          console.error(
-            "Supabase sound playback failed:",
-            error
-          );
-
-
-          status.textContent =
-            "🔴 Uploaded sound playback failed.";
-
-        });
-
-    }
-
-
-    // --------------------------------------------------
-    // GET BUILT-IN MUSIC URL
-    // --------------------------------------------------
-
-    function getGitHubMusicUrl(file) {
-
-      return (
-        "music/" +
-        encodeURIComponent(file)
-      );
-
-    }
-
-
-    // --------------------------------------------------
-    // PLAY MUSIC URL
-    // --------------------------------------------------
-
-    async function playMusicUrl(
-      url,
-      displayFile
-    ) {
-
-      stopMusic();
-
-
-      musicAudio =
-        new Audio(url);
-
-
-      musicAudio.loop =
-        false;
-
-
-      musicAudio.preload =
-        "auto";
-
-
-      musicAudio.onended =
-        () => {
-
-          if (!repeatMusic) {
+            console.error(error);
 
             status.textContent =
-              "🟢 Music finished";
+              "🔴 Music playback failed.";
 
-          }
+          });
 
-        };
-
-
-      status.textContent =
-        "🎵 Playing: " +
-        displayFile;
+      }
+    );
 
 
-      try {
+    // CONNECT
 
-        await musicAudio.play();
+    channel.subscribe(
+      state => {
 
+        if (state === "SUBSCRIBED") {
 
-        /*
-         * For repeat music we need the duration
-         * before scheduling the overlap.
-         */
+          join.style.display =
+            "none";
+
+          player.style.display =
+            "block";
+
+          message.textContent =
+            "";
+
+          status.textContent =
+            audioEnabled
+              ? "🟢 Connected — waiting for sounds."
+              : "🟢 Connected — click Enable Audio.";
+
+        }
+
 
         if (
-          musicAudio.readyState >= 1
+          state === "CHANNEL_ERROR" ||
+          state === "TIMED_OUT"
         ) {
 
-          scheduleRepeat();
+          joinButton.disabled =
+            false;
 
-        } else {
+          message.textContent =
+            "Could not connect to that session.";
 
-          musicAudio.addEventListener(
-            "loadedmetadata",
-            scheduleRepeat,
-            {
-              once: true
-            }
-          );
+          status.textContent =
+            "🔴 Connection failed.";
 
         }
 
-      } catch (error) {
-
-        console.error(
-          "Music playback failed:",
-          error
-        );
-
-
-        status.textContent =
-          "🔴 Music playback failed.";
-
       }
+    );
+
+  };
+
+
+// --------------------------------------------------
+// LEAVE
+// --------------------------------------------------
+
+leaveButton.onclick =
+  async () => {
+
+    if (musicAudio) {
+
+      musicAudio.pause();
+
+      musicAudio = null;
 
     }
 
 
-    // --------------------------------------------------
-    // SCHEDULE REPEAT
-    // --------------------------------------------------
+    if (channel) {
 
-    function scheduleRepeat() {
-
-      clearTimeout(
-        repeatTimer
+      await supabase.removeChannel(
+        channel
       );
 
-
-      repeatTimer =
-        null;
-
-
-      if (!musicAudio) {
-
-        return;
-
-      }
-
-
-      if (!repeatMusic) {
-
-        return;
-
-      }
-
-
-      const remaining =
-        musicAudio.duration -
-        musicAudio.currentTime -
-        REPEAT_OVERLAP;
-
-
-      if (
-        !Number.isFinite(
-          remaining
-        )
-      ) {
-
-        return;
-
-      }
-
-
-      if (
-        remaining <= 0
-      ) {
-
-        return;
-
-      }
-
-
-      repeatTimer =
-        setTimeout(
-          repeatSong,
-          remaining * 1000
-        );
+      channel = null;
 
     }
 
 
-    // --------------------------------------------------
-    // REPEAT SONG
-    // --------------------------------------------------
+    join.style.display =
+      "block";
 
-    function repeatSong() {
+    player.style.display =
+      "none";
 
-      if (!musicAudio) {
+    codeInput.value =
+      "";
 
-        return;
+    joinButton.disabled =
+      false;
 
-      }
+    status.textContent =
+      "Enter the host's session code.";
 
-
-      if (!repeatMusic) {
-
-        return;
-
-      }
+  };
 
 
-      const oldAudio =
-        musicAudio;
+// --------------------------------------------------
+// ENTER KEY
+// --------------------------------------------------
 
+codeInput.addEventListener(
+  "keydown",
+  event => {
 
-      const url =
-        currentMusicUrl;
+    if (event.key === "Enter") {
 
-
-      if (!url) {
-
-        console.error(
-          "Cannot repeat music: no current URL."
-        );
-
-        return;
-
-      }
-
-
-      const newAudio =
-        new Audio(url);
-
-
-      newAudio.volume =
-        1;
-
-
-      newAudio.preload =
-        "auto";
-
-
-      newAudio.play()
-        .catch(error => {
-
-          console.error(
-            "Repeat playback failed:",
-            error
-          );
-
-        });
-
-
-      const fadeSteps =
-        10;
-
-
-      let step =
-        0;
-
-
-      const fadeTimer =
-        setInterval(
-          () => {
-
-            step++;
-
-
-            oldAudio.volume =
-              Math.max(
-                0,
-                1 -
-                step / fadeSteps
-              );
-
-
-            if (
-              step >= fadeSteps
-            ) {
-
-              clearInterval(
-                fadeTimer
-              );
-
-
-              oldAudio.pause();
-
-
-              try {
-
-                oldAudio.currentTime =
-                  0;
-
-              } catch (error) {
-
-                console.warn(
-                  "Could not reset old audio:",
-                  error
-                );
-
-              }
-
-
-              oldAudio.volume =
-                1;
-
-            }
-
-          },
-          (REPEAT_OVERLAP * 1000) /
-          fadeSteps
-        );
-
-
-      musicAudio =
-        newAudio;
-
-
-      newAudio.addEventListener(
-        "loadedmetadata",
-        scheduleRepeat,
-        {
-          once: true
-        }
-      );
+      joinButton.click();
 
     }
 
+  }
+);
 
-    // --------------------------------------------------
-    // STOP MUSIC
-    // --------------------------------------------------
-
-    function stopMusic() {
-
-      clearTimeout(
-        repeatTimer
-      );
-
-
-      repeatTimer =
-        null;
-
-
-      if (musicAudio) {
-
-        musicAudio.pause();
-
-
-        try {
-
-          musicAudio.currentTime =
-            0;
-
-        } catch (error) {
-
-          console.warn(
-            "Could not reset music:",
-            error
-          );
-
-        }
-
-      }
-
-
-      musicAudio =
-        null;
-
-
-      currentMusicFile =
-        null;
-
-
-      currentMusicUrl =
-        null;
-
-    }
-
-
-    // --------------------------------------------------
-    // LEAVE
-    // --------------------------------------------------
-
-    leaveButton.onclick =
-      async () => {
-
-        stopMusic();
-
-
-        if (channel) {
-
-          try {
-
-            await supabase
-              .removeChannel(channel);
-
-          } catch (error) {
-
-            console.warn(
-              "Could not remove channel:",
-              error
-            );
-
-          }
-
-
-          channel =
-            null;
-
-        }
-
-
-        connected =
-          false;
-
-
-        playerPanel.style.display =
-          "none";
-
-
-        joinPanel.style.display =
-          "block";
-
-
-        sessionCodeInput.value =
-          "";
-
-
-        joinMessage.textContent =
-          "";
-
-
-        status.textContent =
-          "Enter the host's session code.";
-
-      };
-
-
-    // --------------------------------------------------
-    // ENTER KEY
-    // --------------------------------------------------
-
-    sessionCodeInput
-      .addEventListener(
-        "keydown",
-        event => {
-
-          if (
-            event.key === "Enter"
-          ) {
-
-            joinButton.click();
-
-          }
-
-        }
-      );
-
-  </script>
+</script>
 
 </body>
 </html>
