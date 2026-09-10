@@ -86,24 +86,15 @@
       margin-bottom: 15px;
     }
 
-    .music-options {
-      margin: 10px 0 15px 0;
-      padding: 10px;
-      background: #444;
-      border-radius: 5px;
-    }
-
-    .music-options label {
+    .music-controls {
       display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
+      gap: 6px;
+      flex-shrink: 0;
     }
 
-    .music-options input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      margin: 0;
+    .repeat-active {
+      background: #4caf50;
+      color: white;
     }
   </style>
 </head>
@@ -209,18 +200,6 @@
 
     </div>
 
-    <div class="music-options">
-
-      <label>
-        <input
-          id="musicLoop"
-          type="checkbox"
-        >
-        🔁 Loop Music
-      </label>
-
-    </div>
-
     <div id="music"></div>
 
   </div>
@@ -277,9 +256,6 @@ const music =
 const userInfo =
   document.getElementById("userInfo");
 
-const musicLoop =
-  document.getElementById("musicLoop");
-
 
 // --------------------------------------------------
 // STATE
@@ -292,15 +268,6 @@ let sessionCode = null;
 let uploadedSounds = [];
 
 let uploadedMusic = [];
-
-
-// --------------------------------------------------
-// MUSIC LOOP SETTINGS
-// --------------------------------------------------
-
-const MUSIC_FADE_DURATION = 3;
-
-const MUSIC_LOOP_OVERLAP = 3;
 
 
 // --------------------------------------------------
@@ -808,15 +775,7 @@ async function playMusic(song) {
 
         file: song.name,
 
-        url: url,
-
-        loop: musicLoop.checked,
-
-        fadeIn: MUSIC_FADE_DURATION,
-
-        fadeOut: MUSIC_FADE_DURATION,
-
-        loopOverlap: MUSIC_LOOP_OVERLAP
+        url: url
 
       }
 
@@ -839,6 +798,66 @@ async function playMusic(song) {
   status.textContent =
     "▶ Playing " +
     song.name;
+
+}
+
+
+// --------------------------------------------------
+// TOGGLE MUSIC REPEAT
+// --------------------------------------------------
+
+async function toggleRepeat(
+  song,
+  repeat
+) {
+
+  if (!channel) return;
+
+
+  console.log(
+    "Repeat:",
+    song.name,
+    repeat
+  );
+
+
+  const {
+    error
+  } =
+    await channel.send({
+
+      type: "broadcast",
+
+      event: "repeat-music",
+
+      payload: {
+
+        file: song.name,
+
+        repeat: repeat
+
+      }
+
+    });
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Failed to change repeat:\n" +
+      error.message;
+
+    return;
+
+  }
+
+
+  status.textContent =
+    repeat
+      ? "🔁 Repeating " + song.name
+      : "▶ Repeat disabled for " + song.name;
 
 }
 
@@ -1092,6 +1111,13 @@ function renderMusic() {
         song.name;
 
 
+      const controls =
+        document.createElement("div");
+
+      controls.className =
+        "music-controls";
+
+
       const playButton =
         document.createElement("button");
 
@@ -1100,6 +1126,39 @@ function renderMusic() {
 
       playButton.onclick =
         () => playMusic(song);
+
+
+      const repeatButton =
+        document.createElement("button");
+
+      repeatButton.textContent =
+        "🔁";
+
+      repeatButton.title =
+        "Toggle repeat";
+
+
+      let repeating = false;
+
+
+      repeatButton.onclick =
+        () => {
+
+          repeating = !repeating;
+
+
+          repeatButton.classList.toggle(
+            "repeat-active",
+            repeating
+          );
+
+
+          toggleRepeat(
+            song,
+            repeating
+          );
+
+        };
 
 
       const deleteButton =
@@ -1112,11 +1171,16 @@ function renderMusic() {
         () => deleteFile(song);
 
 
+      controls.appendChild(playButton);
+
+      controls.appendChild(repeatButton);
+
+      controls.appendChild(deleteButton);
+
+
       row.appendChild(name);
 
-      row.appendChild(playButton);
-
-      row.appendChild(deleteButton);
+      row.appendChild(controls);
 
 
       music.appendChild(row);
