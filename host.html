@@ -85,6 +85,55 @@
     .upload-row {
       margin-bottom: 15px;
     }
+
+    .control-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .player {
+      background: #444;
+      padding: 12px;
+      border-radius: 6px;
+      margin: 8px 0;
+    }
+
+    .player-name {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .player-status {
+      color: #aaa;
+    }
+
+    .ready {
+      color: #7cff7c;
+    }
+
+    .loading {
+      color: #ffd166;
+    }
+
+    .error {
+      color: #ff7777;
+    }
+
+    .repeat-on {
+      background: #4d7c4d;
+    }
+
+    .repeat-off {
+      background: #555;
+    }
+
+    .small-text {
+      color: #999;
+      font-size: 14px;
+      margin-top: 8px;
+    }
   </style>
 </head>
 
@@ -93,6 +142,7 @@
 <h1>🎲 Soundboard Host</h1>
 
 <p id="status">Loading...</p>
+
 
 <!-- LOGIN -->
 
@@ -127,6 +177,9 @@
 
 <div id="host">
 
+
+  <!-- SESSION -->
+
   <div class="box">
 
     <h2>Session</h2>
@@ -147,6 +200,49 @@
 
   </div>
 
+
+  <!-- PLAYER PRELOAD -->
+
+  <div class="box">
+
+    <h2>📦 Player Audio Preload</h2>
+
+    <p>
+      Send your current library to all connected players.
+      Players will download the audio and keep it ready in
+      their browser for instant playback.
+    </p>
+
+    <button id="preloadPlayers">
+      📦 Send Players Preload Request
+    </button>
+
+    <div class="small-text">
+      New players should receive a preload request when
+      the player page is implemented.
+    </div>
+
+  </div>
+
+
+  <!-- PLAYER STATUS -->
+
+  <div class="box">
+
+    <h2>👥 Player Preload Status</h2>
+
+    <div id="players">
+
+      <div class="empty">
+        No players connected yet.
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- SOUNDS -->
 
   <div class="box">
 
@@ -171,6 +267,8 @@
   </div>
 
 
+  <!-- MUSIC -->
+
   <div class="box">
 
     <h2>🎵 Music</h2>
@@ -189,9 +287,27 @@
 
     </div>
 
+
+    <div class="control-row">
+
+      <button
+        id="repeatMusic"
+        class="repeat-off"
+      >
+        🔁 Repeat: OFF
+      </button>
+
+    </div>
+
+    <div class="small-text">
+      When enabled, the player will restart music
+      approximately 0.1 seconds before the song ends.
+    </div>
+
     <div id="music"></div>
 
   </div>
+
 
 </div>
 
@@ -208,7 +324,10 @@ import {
 // --------------------------------------------------
 
 const keys =
-  await fetch("keys.json").then(r => r.json());
+  await fetch("keys.json").then(
+    r => r.json()
+  );
+
 
 const supabase =
   createClient(
@@ -222,28 +341,63 @@ const supabase =
 // --------------------------------------------------
 
 const status =
-  document.getElementById("status");
+  document.getElementById(
+    "status"
+  );
+
 
 const login =
-  document.getElementById("login");
+  document.getElementById(
+    "login"
+  );
+
 
 const host =
-  document.getElementById("host");
+  document.getElementById(
+    "host"
+  );
+
 
 const loginMessage =
-  document.getElementById("loginMessage");
+  document.getElementById(
+    "loginMessage"
+  );
+
 
 const codeElement =
-  document.getElementById("code");
+  document.getElementById(
+    "code"
+  );
+
 
 const sounds =
-  document.getElementById("sounds");
+  document.getElementById(
+    "sounds"
+  );
+
 
 const music =
-  document.getElementById("music");
+  document.getElementById(
+    "music"
+  );
+
 
 const userInfo =
-  document.getElementById("userInfo");
+  document.getElementById(
+    "userInfo"
+  );
+
+
+const players =
+  document.getElementById(
+    "players"
+  );
+
+
+const repeatMusicButton =
+  document.getElementById(
+    "repeatMusic"
+  );
 
 
 // --------------------------------------------------
@@ -258,6 +412,26 @@ let uploadedSounds = [];
 
 let uploadedMusic = [];
 
+let musicRepeat = false;
+
+
+// Player status information.
+//
+// Each player will eventually send:
+//
+// {
+//   playerId,
+//   name,
+//   status,
+//   loaded,
+//   total,
+//   message
+// }
+//
+// The player page will be implemented later.
+
+let playerStatuses = {};
+
 
 // --------------------------------------------------
 // SESSION CODE
@@ -268,20 +442,29 @@ function generateCode() {
   const chars =
     "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+
   let result = "";
 
-  for (let i = 0; i < 8; i++) {
+
+  for (
+    let i = 0;
+    i < 8;
+    i++
+  ) {
 
     result +=
       chars[
         Math.floor(
-          Math.random() * chars.length
+          Math.random() *
+          chars.length
         )
       ];
 
   }
 
+
   return result;
+
 }
 
 
@@ -297,6 +480,7 @@ async function getCurrentUser() {
   } =
     await supabase.auth.getUser();
 
+
   if (error) {
 
     console.error(error);
@@ -304,6 +488,7 @@ async function getCurrentUser() {
     return null;
 
   }
+
 
   return data.user;
 
@@ -319,12 +504,15 @@ async function loadLibrary() {
   const user =
     await getCurrentUser();
 
+
   if (!user) {
 
     uploadedSounds = [];
+
     uploadedMusic = [];
 
     renderSounds();
+
     renderMusic();
 
     return;
@@ -343,10 +531,16 @@ async function loadLibrary() {
     await supabase
       .from("soundboard_files")
       .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", {
-        ascending: true
-      });
+      .eq(
+        "user_id",
+        user.id
+      )
+      .order(
+        "created_at",
+        {
+          ascending: true
+        }
+      );
 
 
   if (error) {
@@ -364,17 +558,20 @@ async function loadLibrary() {
 
   uploadedSounds =
     data.filter(
-      file => file.type === "sound"
+      file =>
+        file.type === "sound"
     );
 
 
   uploadedMusic =
     data.filter(
-      file => file.type === "music"
+      file =>
+        file.type === "music"
     );
 
 
   renderSounds();
+
   renderMusic();
 
 
@@ -409,20 +606,218 @@ async function createSession() {
     sessionCode;
 
 
+  // Reset player statuses
+  playerStatuses = {};
+
+  renderPlayerStatuses();
+
+
   status.textContent =
     "Connecting...";
 
 
   channel =
     supabase.channel(
-      "soundboard-" + sessionCode
+      "soundboard-" +
+      sessionCode
     );
 
 
-  channel.subscribe(
-    state => {
+  // ------------------------------------------------
+  // PLAYER PRELOAD STATUS
+  // ------------------------------------------------
 
-      if (state === "SUBSCRIBED") {
+  channel.on(
+    "broadcast",
+    {
+      event: "preload-status"
+    },
+    payload => {
+
+      const data =
+        payload.payload;
+
+
+      if (!data) return;
+
+
+      const playerId =
+        data.playerId;
+
+
+      if (!playerId) return;
+
+
+      playerStatuses[playerId] = {
+
+        playerId:
+          playerId,
+
+        name:
+          data.name ||
+          "Player",
+
+        status:
+          data.status ||
+          "unknown",
+
+        loaded:
+          Number(
+            data.loaded || 0
+          ),
+
+        total:
+          Number(
+            data.total || 0
+          ),
+
+        message:
+          data.message ||
+          "",
+
+        lastUpdate:
+          Date.now()
+
+      };
+
+
+      renderPlayerStatuses();
+
+    }
+  );
+
+
+  // ------------------------------------------------
+  // PLAYER JOIN / PRESENCE
+  // ------------------------------------------------
+
+  channel.on(
+    "presence",
+    {
+      event: "sync"
+    },
+    () => {
+
+      renderPlayerStatuses();
+
+    }
+  );
+
+
+  channel.on(
+    "presence",
+    {
+      event: "join"
+    },
+    event => {
+
+      if (
+        event &&
+        event.newPresences
+      ) {
+
+        event.newPresences.forEach(
+          presence => {
+
+            const playerId =
+              presence.playerId;
+
+
+            if (!playerId) return;
+
+
+            if (
+              !playerStatuses[playerId]
+            ) {
+
+              playerStatuses[playerId] = {
+
+                playerId:
+                  playerId,
+
+                name:
+                  presence.name ||
+                  "Player",
+
+                status:
+                  "connected",
+
+                loaded:
+                  0,
+
+                total:
+                  0,
+
+                message:
+                  "Connected",
+
+                lastUpdate:
+                  Date.now()
+
+              };
+
+            }
+
+          }
+        );
+
+      }
+
+
+      renderPlayerStatuses();
+
+    }
+  );
+
+
+  channel.on(
+    "presence",
+    {
+      event: "leave"
+    },
+    event => {
+
+      if (
+        event &&
+        event.leftPresences
+      ) {
+
+        event.leftPresences.forEach(
+          presence => {
+
+            const playerId =
+              presence.playerId;
+
+
+            if (!playerId) return;
+
+
+            delete playerStatuses[
+              playerId
+            ];
+
+          }
+        );
+
+      }
+
+
+      renderPlayerStatuses();
+
+    }
+  );
+
+
+  // ------------------------------------------------
+  // SUBSCRIBE
+  // ------------------------------------------------
+
+  channel.subscribe(
+    async state => {
+
+      if (
+        state === "SUBSCRIBED"
+      ) {
 
         status.textContent =
           "🟢 Connected\n" +
@@ -438,22 +833,15 @@ async function createSession() {
 
 
 // --------------------------------------------------
-// UPLOAD FILE
+// SEND PRELOAD REQUEST
 // --------------------------------------------------
 
-async function uploadFile(
-  input,
-  type
-) {
+async function sendPreloadRequest() {
 
-  const file =
-    input.files[0];
-
-
-  if (!file) {
+  if (!channel) {
 
     alert(
-      "Choose an audio file first."
+      "No active player session."
     );
 
     return;
@@ -461,57 +849,86 @@ async function uploadFile(
   }
 
 
-  const user =
-    await getCurrentUser();
-
-
-  if (!user) {
+  if (
+    uploadedSounds.length === 0 &&
+    uploadedMusic.length === 0
+  ) {
 
     alert(
-      "You are not logged in."
+      "Your library is empty."
     );
 
     return;
 
   }
-
-
-  const path =
-    user.id +
-    "/" +
-    Date.now() +
-    "-" +
-    file.name;
 
 
   status.textContent =
-    "Uploading " +
-    file.name +
-    "...";
+    "Preparing preload request...";
+
+
+  const library = [];
+
+
+  const allFiles =
+    [
+      ...uploadedSounds,
+      ...uploadedMusic
+    ];
 
 
   // ------------------------------------------------
-  // UPLOAD TO STORAGE
+  // CREATE SIGNED URLS
   // ------------------------------------------------
 
-  const {
-    error: uploadError
-  } =
-    await supabase.storage
-      .from("soundboard")
-      .upload(
-        path,
-        file
+  for (
+    const item of allFiles
+  ) {
+
+    const url =
+      await getSignedUrl(
+        item.path
       );
 
 
-  if (uploadError) {
+    if (!url) {
 
-    console.error(uploadError);
+      console.error(
+        "Could not create signed URL for",
+        item.name
+      );
+
+      continue;
+
+    }
+
+
+    library.push({
+
+      id:
+        item.id,
+
+      name:
+        item.name,
+
+      type:
+        item.type,
+
+      path:
+        item.path,
+
+      url:
+        url
+
+    });
+
+  }
+
+
+  if (library.length === 0) {
 
     status.textContent =
-      "🔴 Upload failed:\n" +
-      uploadError.message;
+      "🔴 No files could be prepared.";
 
     return;
 
@@ -519,98 +936,93 @@ async function uploadFile(
 
 
   // ------------------------------------------------
-  // SAVE LIBRARY RECORD
+  // SEND TO PLAYERS
   // ------------------------------------------------
 
   const {
-    data: libraryItem,
-    error: dbError
+    error
   } =
-    await supabase
-      .from("soundboard_files")
-      .insert({
+    await channel.send({
 
-        user_id: user.id,
+      type: "broadcast",
 
-        name: file.name,
+      event: "preload-library",
 
-        path: path,
+      payload: {
 
-        type: type
+        library:
+          library,
 
-      })
-      .select()
-      .single();
+        requestedAt:
+          Date.now()
 
+      }
 
-  if (dbError) {
-
-    console.error(dbError);
+    });
 
 
-    // Remove uploaded file if database insert fails
+  if (error) {
 
-    await supabase.storage
-      .from("soundboard")
-      .remove([
-        path
-      ]);
-
+    console.error(error);
 
     status.textContent =
-      "🔴 Could not save library item:\n" +
-      dbError.message;
+      "🔴 Failed to send preload request:\n" +
+      error.message;
 
     return;
 
   }
 
 
-  // ------------------------------------------------
-  // ADD TO LOCAL LIBRARY
-  // ------------------------------------------------
-
-  if (type === "sound") {
-
-    uploadedSounds.push(
-      libraryItem
-    );
-
-    renderSounds();
-
-  } else {
-
-    uploadedMusic.push(
-      libraryItem
-    );
-
-    renderMusic();
-
-  }
-
-
-  input.value = "";
-
-
   status.textContent =
-    "🟢 Uploaded " +
-    file.name;
+    "📦 Preload request sent to players\n" +
+    library.length +
+    " files";
+
+
+  // Mark currently known players
+  // as loading.
+
+  Object.keys(
+    playerStatuses
+  ).forEach(
+    playerId => {
+
+      playerStatuses[playerId].status =
+        "loading";
+
+      playerStatuses[playerId].loaded =
+        0;
+
+      playerStatuses[playerId].total =
+        library.length;
+
+      playerStatuses[playerId].message =
+        "Preloading library...";
+
+    }
+  );
+
+
+  renderPlayerStatuses();
 
 }
 
 
 // --------------------------------------------------
-// CREATE SIGNED URL
+// GET SIGNED URL
 // --------------------------------------------------
 
-async function getSignedUrl(path) {
+async function getSignedUrl(
+  path
+) {
 
   /*
    * The Storage bucket is PRIVATE.
    *
-   * This creates a temporary URL that
-   * can be sent to the unauthenticated
-   * player.
+   * This creates a temporary URL
+   * that can be sent to the
+   * unauthenticated player.
    */
 
   const {
@@ -621,7 +1033,7 @@ async function getSignedUrl(path) {
       .from("soundboard")
       .createSignedUrl(
         path,
-        60 * 10
+        60 * 60
       );
 
 
@@ -647,7 +1059,9 @@ async function getSignedUrl(path) {
 // BROADCAST SOUND
 // --------------------------------------------------
 
-async function playSound(sound) {
+async function playSound(
+  sound
+) {
 
   if (!channel) {
 
@@ -686,11 +1100,27 @@ async function playSound(sound) {
 
       payload: {
 
-        source: "supabase",
+        source:
+          "supabase",
 
-        file: sound.name,
+        file:
+          sound.name,
 
-        url: url
+        id:
+          sound.id,
+
+        path:
+          sound.path,
+
+        url:
+          url,
+
+        // Tell the player that this
+        // should normally use its
+        // preloaded copy.
+
+        usePreloaded:
+          true
 
       }
 
@@ -721,7 +1151,9 @@ async function playSound(sound) {
 // BROADCAST MUSIC
 // --------------------------------------------------
 
-async function playMusic(song) {
+async function playMusic(
+  song
+) {
 
   if (!channel) {
 
@@ -760,11 +1192,44 @@ async function playMusic(song) {
 
       payload: {
 
-        source: "supabase",
+        source:
+          "supabase",
 
-        file: song.name,
+        file:
+          song.name,
 
-        url: url
+        id:
+          song.id,
+
+        path:
+          song.path,
+
+        url:
+          url,
+
+        // The player will use
+        // its preloaded copy.
+
+        usePreloaded:
+          true,
+
+        // ------------------------------------------------
+        // REPEAT SETTINGS
+        // ------------------------------------------------
+
+        repeat:
+          musicRepeat,
+
+        /*
+         * When repeat is enabled,
+         * the player should restart
+         * approximately 0.1 seconds
+         * before the track reaches
+         * its natural end.
+         */
+
+        repeatLeadTime:
+          0.1
 
       }
 
@@ -786,16 +1251,55 @@ async function playMusic(song) {
 
   status.textContent =
     "▶ Playing " +
-    song.name;
+    song.name +
+    (
+      musicRepeat
+        ? " 🔁"
+        : ""
+    );
 
 }
+
+
+// --------------------------------------------------
+// MUSIC REPEAT TOGGLE
+// --------------------------------------------------
+
+repeatMusicButton.onclick =
+  () => {
+
+    musicRepeat =
+      !musicRepeat;
+
+
+    if (musicRepeat) {
+
+      repeatMusicButton.textContent =
+        "🔁 Repeat: ON";
+
+      repeatMusicButton.className =
+        "repeat-on";
+
+    } else {
+
+      repeatMusicButton.textContent =
+        "🔁 Repeat: OFF";
+
+      repeatMusicButton.className =
+        "repeat-off";
+
+    }
+
+  };
 
 
 // --------------------------------------------------
 // DELETE FILE
 // --------------------------------------------------
 
-async function deleteFile(item) {
+async function deleteFile(
+  item
+) {
 
   const confirmed =
     confirm(
@@ -845,7 +1349,9 @@ async function deleteFile(item) {
 
   if (storageError) {
 
-    console.error(storageError);
+    console.error(
+      storageError
+    );
 
     status.textContent =
       "🔴 Could not delete file:\n" +
@@ -866,13 +1372,21 @@ async function deleteFile(item) {
     await supabase
       .from("soundboard_files")
       .delete()
-      .eq("id", item.id)
-      .eq("user_id", user.id);
+      .eq(
+        "id",
+        item.id
+      )
+      .eq(
+        "user_id",
+        user.id
+      );
 
 
   if (dbError) {
 
-    console.error(dbError);
+    console.error(
+      dbError
+    );
 
     status.textContent =
       "🔴 File deleted but database cleanup failed:\n" +
@@ -889,11 +1403,14 @@ async function deleteFile(item) {
   // REMOVE FROM LOCAL ARRAYS
   // ------------------------------------------------
 
-  if (item.type === "sound") {
+  if (
+    item.type === "sound"
+  ) {
 
     uploadedSounds =
       uploadedSounds.filter(
-        sound => sound.id !== item.id
+        sound =>
+          sound.id !== item.id
       );
 
     renderSounds();
@@ -902,7 +1419,8 @@ async function deleteFile(item) {
 
     uploadedMusic =
       uploadedMusic.filter(
-        song => song.id !== item.id
+        song =>
+          song.id !== item.id
       );
 
     renderMusic();
@@ -926,18 +1444,28 @@ function renderSounds() {
   sounds.innerHTML = "";
 
 
-  if (uploadedSounds.length === 0) {
+  if (
+    uploadedSounds.length === 0
+  ) {
 
     const empty =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
+
 
     empty.className =
       "empty";
 
+
     empty.textContent =
       "No saved sounds yet.";
 
-    sounds.appendChild(empty);
+
+    sounds.appendChild(
+      empty
+    );
+
 
     return;
 
@@ -948,47 +1476,71 @@ function renderSounds() {
     sound => {
 
       const row =
-        document.createElement("div");
+        document.createElement(
+          "div"
+        );
+
 
       row.className =
         "file";
 
 
       const name =
-        document.createElement("span");
+        document.createElement(
+          "span"
+        );
+
 
       name.textContent =
         sound.name;
 
 
       const playButton =
-        document.createElement("button");
+        document.createElement(
+          "button"
+        );
+
 
       playButton.textContent =
         "▶ Play";
 
+
       playButton.onclick =
-        () => playSound(sound);
+        () =>
+          playSound(sound);
 
 
       const deleteButton =
-        document.createElement("button");
+        document.createElement(
+          "button"
+        );
+
 
       deleteButton.textContent =
         "🗑 Delete";
 
+
       deleteButton.onclick =
-        () => deleteFile(sound);
+        () =>
+          deleteFile(sound);
 
 
-      row.appendChild(name);
+      row.appendChild(
+        name
+      );
 
-      row.appendChild(playButton);
+      row.appendChild(
+        playButton
+      );
 
-      row.appendChild(deleteButton);
+      row.appendChild(
+        deleteButton
+      );
 
 
-      sounds.appendChild(row);
+      sounds.appendChild(
+        row
+      );
 
     }
   );
@@ -1005,18 +1557,28 @@ function renderMusic() {
   music.innerHTML = "";
 
 
-  if (uploadedMusic.length === 0) {
+  if (
+    uploadedMusic.length === 0
+  ) {
 
     const empty =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
+
 
     empty.className =
       "empty";
 
+
     empty.textContent =
       "No saved music yet.";
 
-    music.appendChild(empty);
+
+    music.appendChild(
+      empty
+    );
+
 
     return;
 
@@ -1027,47 +1589,284 @@ function renderMusic() {
     song => {
 
       const row =
-        document.createElement("div");
+        document.createElement(
+          "div"
+        );
+
 
       row.className =
         "file";
 
 
       const name =
-        document.createElement("span");
+        document.createElement(
+          "span"
+        );
+
 
       name.textContent =
         song.name;
 
 
       const playButton =
-        document.createElement("button");
+        document.createElement(
+          "button"
+        );
+
 
       playButton.textContent =
         "▶ Play";
 
+
       playButton.onclick =
-        () => playMusic(song);
+        () =>
+          playMusic(song);
 
 
       const deleteButton =
-        document.createElement("button");
+        document.createElement(
+          "button"
+        );
+
 
       deleteButton.textContent =
         "🗑 Delete";
 
+
       deleteButton.onclick =
-        () => deleteFile(song);
+        () =>
+          deleteFile(song);
 
 
-      row.appendChild(name);
+      row.appendChild(
+        name
+      );
 
-      row.appendChild(playButton);
+      row.appendChild(
+        playButton
+      );
 
-      row.appendChild(deleteButton);
+      row.appendChild(
+        deleteButton
+      );
 
 
-      music.appendChild(row);
+      music.appendChild(
+        row
+      );
+
+    }
+  );
+
+}
+
+
+// --------------------------------------------------
+// RENDER PLAYER STATUSES
+// --------------------------------------------------
+
+function renderPlayerStatuses() {
+
+  players.innerHTML = "";
+
+
+  const playerList =
+    Object.values(
+      playerStatuses
+    );
+
+
+  if (
+    playerList.length === 0
+  ) {
+
+    const empty =
+      document.createElement(
+        "div"
+      );
+
+
+    empty.className =
+      "empty";
+
+
+    empty.textContent =
+      "No players connected yet.";
+
+
+    players.appendChild(
+      empty
+    );
+
+
+    return;
+
+  }
+
+
+  playerList.forEach(
+    player => {
+
+      const container =
+        document.createElement(
+          "div"
+        );
+
+
+      container.className =
+        "player";
+
+
+      const playerName =
+        document.createElement(
+          "div"
+        );
+
+
+      playerName.className =
+        "player-name";
+
+
+      playerName.textContent =
+        "👤 " +
+        (
+          player.name ||
+          "Player"
+        );
+
+
+      const playerStatus =
+        document.createElement(
+          "div"
+        );
+
+
+      playerStatus.className =
+        "player-status";
+
+
+      let statusText =
+        player.status ||
+        "Unknown";
+
+
+      let statusClass =
+        "";
+
+
+      if (
+        player.status ===
+        "ready"
+      ) {
+
+        statusText =
+          "🟢 Ready";
+
+        statusClass =
+          "ready";
+
+      } else if (
+        player.status ===
+        "loading"
+      ) {
+
+        statusText =
+          "🟡 Loading";
+
+        statusClass =
+          "loading";
+
+      } else if (
+        player.status ===
+        "error"
+      ) {
+
+        statusText =
+          "🔴 Error";
+
+        statusClass =
+          "error";
+
+      } else if (
+        player.status ===
+        "connected"
+      ) {
+
+        statusText =
+          "⚪ Connected";
+
+      }
+
+
+      playerStatus.className =
+        "player-status " +
+        statusClass;
+
+
+      // ------------------------------------------------
+      // PROGRESS
+      // ------------------------------------------------
+
+      let progressText = "";
+
+
+      if (
+        player.total > 0
+      ) {
+
+        progressText =
+          " (" +
+          player.loaded +
+          "/" +
+          player.total +
+          ")";
+
+      }
+
+
+      playerStatus.textContent =
+        statusText +
+        progressText;
+
+
+      container.appendChild(
+        playerName
+      );
+
+
+      container.appendChild(
+        playerStatus
+      );
+
+
+      if (
+        player.message
+      ) {
+
+        const message =
+          document.createElement(
+            "div"
+          );
+
+
+        message.className =
+          "small-text";
+
+
+        message.textContent =
+          player.message;
+
+
+        container.appendChild(
+          message
+        );
+
+      }
+
+
+      players.appendChild(
+        container
+      );
 
     }
   );
@@ -1079,10 +1878,13 @@ function renderMusic() {
 // SHOW HOST
 // --------------------------------------------------
 
-async function showHost(user) {
+async function showHost(
+  user
+) {
 
   login.style.display =
     "none";
+
 
   host.style.display =
     "block";
@@ -1105,20 +1907,26 @@ async function showHost(user) {
 // --------------------------------------------------
 
 document
-  .getElementById("loginButton")
+  .getElementById(
+    "loginButton"
+  )
   .onclick =
   async () => {
 
     const email =
       document
-        .getElementById("email")
+        .getElementById(
+          "email"
+        )
         .value
         .trim();
 
 
     const password =
       document
-        .getElementById("password")
+        .getElementById(
+          "password"
+        )
         .value;
 
 
@@ -1158,7 +1966,7 @@ document
       data.user
     );
 
-};
+  };
 
 
 // --------------------------------------------------
@@ -1166,9 +1974,23 @@ document
 // --------------------------------------------------
 
 document
-  .getElementById("newCode")
+  .getElementById(
+    "newCode"
+  )
   .onclick =
   createSession;
+
+
+// --------------------------------------------------
+// PRELOAD BUTTON
+// --------------------------------------------------
+
+document
+  .getElementById(
+    "preloadPlayers"
+  )
+  .onclick =
+  sendPreloadRequest;
 
 
 // --------------------------------------------------
@@ -1176,7 +1998,9 @@ document
 // --------------------------------------------------
 
 document
-  .getElementById("uploadSound")
+  .getElementById(
+    "uploadSound"
+  )
   .onclick =
   () =>
     uploadFile(
@@ -1192,7 +2016,9 @@ document
 // --------------------------------------------------
 
 document
-  .getElementById("uploadMusic")
+  .getElementById(
+    "uploadMusic"
+  )
   .onclick =
   () =>
     uploadFile(
@@ -1208,7 +2034,9 @@ document
 // --------------------------------------------------
 
 document
-  .getElementById("logout")
+  .getElementById(
+    "logout"
+  )
   .onclick =
   async () => {
 
@@ -1223,21 +2051,26 @@ document
     }
 
 
-    await supabase.auth.signOut();
-
-
     uploadedSounds = [];
 
     uploadedMusic = [];
+
+    playerStatuses = {};
 
 
     renderSounds();
 
     renderMusic();
 
+    renderPlayerStatuses();
+
+
+    await supabase.auth.signOut();
+
 
     host.style.display =
       "none";
+
 
     login.style.display =
       "block";
@@ -1271,7 +2104,9 @@ const {
   await supabase.auth.getSession();
 
 
-if (data.session) {
+if (
+  data.session
+) {
 
   await showHost(
     data.session.user

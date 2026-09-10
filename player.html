@@ -22,6 +22,11 @@
       cursor: pointer;
     }
 
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
     #player {
       display: none;
     }
@@ -30,7 +35,8 @@
       background: #333;
       padding: 25px;
       border-radius: 10px;
-      max-width: 500px;
+      max-width: 600px;
+      margin-bottom: 20px;
     }
 
     #code {
@@ -42,8 +48,42 @@
       text-transform: uppercase;
     }
 
+    #name {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
     #status {
       white-space: pre-wrap;
+    }
+
+    #playerName {
+      color: #7cff7c;
+      font-weight: bold;
+    }
+
+    #preloadStatus {
+      background: #444;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+      white-space: pre-wrap;
+    }
+
+    .status-good {
+      color: #7cff7c;
+    }
+
+    .status-warning {
+      color: #ffd166;
+    }
+
+    .status-error {
+      color: #ff6b6b;
+    }
+
+    .hidden {
+      display: none;
     }
   </style>
 </head>
@@ -57,12 +97,27 @@
 </p>
 
 
+<!-- JOIN -->
+
 <div id="join" class="box">
+
+  <h2>Join Soundboard</h2>
+
+  <input
+    id="name"
+    type="text"
+    maxlength="20"
+    placeholder="Your name"
+    autocomplete="off"
+  >
+
+  <br>
 
   <input
     id="code"
     maxlength="8"
     placeholder="ABCDEFGH"
+    autocomplete="off"
   >
 
   <br>
@@ -76,17 +131,41 @@
 </div>
 
 
-<div id="player" class="box">
+<!-- PLAYER -->
 
-  <h2>Connected</h2>
+<div id="player">
 
-  <button id="enableAudio">
-    🔊 Enable Audio
-  </button>
+  <div class="box">
 
-  <button id="leave">
-    Leave Session
-  </button>
+    <h2>🎧 Connected</h2>
+
+    <p>
+      Player:
+      <span id="playerName">---</span>
+    </p>
+
+    <p>
+      Session:
+      <strong id="sessionCode">--------</strong>
+    </p>
+
+    <button id="enableAudio">
+      🔊 Enable Audio
+    </button>
+
+    <button id="preloadButton">
+      📥 Preload Sounds
+    </button>
+
+    <button id="leave">
+      Leave Session
+    </button>
+
+    <div id="preloadStatus">
+      Waiting for preload request...
+    </div>
+
+  </div>
 
 </div>
 
@@ -122,6 +201,9 @@ const join =
 const player =
   document.getElementById("player");
 
+const nameInput =
+  document.getElementById("name");
+
 const codeInput =
   document.getElementById("code");
 
@@ -131,6 +213,9 @@ const joinButton =
 const enableAudio =
   document.getElementById("enableAudio");
 
+const preloadButton =
+  document.getElementById("preloadButton");
+
 const leaveButton =
   document.getElementById("leave");
 
@@ -139,6 +224,15 @@ const status =
 
 const message =
   document.getElementById("message");
+
+const playerNameElement =
+  document.getElementById("playerName");
+
+const sessionCodeElement =
+  document.getElementById("sessionCode");
+
+const preloadStatus =
+  document.getElementById("preloadStatus");
 
 
 // --------------------------------------------------
@@ -151,30 +245,511 @@ let audioEnabled = false;
 
 let musicAudio = null;
 
+let currentSessionCode = null;
+
+let playerName = "";
+
+let preloadedSounds = new Map();
+
+let preloadedMusic = new Map();
+
+let preloadInProgress = false;
+
+let currentMusicRepeat = false;
+
+
+// --------------------------------------------------
+// NAME VALIDATION
+// --------------------------------------------------
+
+/*
+ * This is intentionally a basic client-side filter.
+ *
+ * It catches common profanity and inappropriate
+ * language, but no client-side profanity filter
+ * can be perfect.
+ *
+ * The host should also validate the name if you
+ * eventually want the host to have final control.
+ */
+
+const bannedWords = [
+
+  "fuck",
+  "shit",
+  "bitch",
+  "asshole",
+  "bastard",
+  "dick",
+  "piss",
+  "cunt",
+  "whore",
+  "slut",
+  "nigger",
+  "faggot"
+
+];
+
+
+function normalizeNameForFilter(name) {
+
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+}
+
+
+function isNameAppropriate(name) {
+
+  const normalized =
+    normalizeNameForFilter(name);
+
+
+  if (!normalized) {
+
+    return false;
+
+  }
+
+
+  for (const word of bannedWords) {
+
+    if (normalized.includes(word)) {
+
+      return false;
+
+    }
+
+  }
+
+
+  return true;
+
+}
+
+
+// --------------------------------------------------
+// CLEAN PLAYER NAME
+// --------------------------------------------------
+
+function cleanPlayerName(name) {
+
+  return name
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[<>]/g, "");
+
+}
+
 
 // --------------------------------------------------
 // ENABLE AUDIO
 // --------------------------------------------------
 
 enableAudio.onclick =
-  () => {
+  async () => {
 
     audioEnabled = true;
+
+
+    /*
+     * Create and immediately pause a tiny audio
+     * element to help satisfy browser autoplay
+     * requirements.
+     */
+
+    try {
+
+      const audio =
+        new Audio();
+
+      audio.volume = 0;
+
+      await audio.play();
+
+      audio.pause();
+
+    } catch (error) {
+
+      /*
+       * This is okay. The user interaction itself
+       * is still useful for enabling later playback.
+       */
+
+      console.log(
+        "Audio unlock:",
+        error
+      );
+
+    }
+
 
     enableAudio.textContent =
       "🔊 Audio Enabled";
 
+    enableAudio.disabled =
+      true;
+
+
     status.textContent =
-      "🟢 Connected — waiting for sounds.";
+      "🟢 Connected — audio enabled.";
 
   };
 
 
 // --------------------------------------------------
-// PLAY URL
+// PRELOAD SINGLE AUDIO FILE
 // --------------------------------------------------
 
-function playUrl(url) {
+function preloadAudio(url) {
+
+  return new Promise(
+    (resolve, reject) => {
+
+      const audio =
+        new Audio();
+
+      audio.preload =
+        "auto";
+
+      audio.src =
+        url;
+
+
+      audio.addEventListener(
+        "canplaythrough",
+        () => {
+
+          resolve(audio);
+
+        },
+        {
+          once: true
+        }
+      );
+
+
+      audio.addEventListener(
+        "error",
+        () => {
+
+          reject(
+            new Error(
+              "Could not load audio."
+            )
+          );
+
+        },
+        {
+          once: true
+        }
+      );
+
+
+      /*
+       * Explicitly load the resource.
+       */
+
+      audio.load();
+
+    }
+  );
+
+}
+
+
+// --------------------------------------------------
+// PRELOAD LIBRARY
+// --------------------------------------------------
+
+async function preloadLibrary(items) {
+
+  if (
+    !Array.isArray(items) ||
+    items.length === 0
+  ) {
+
+    preloadStatus.textContent =
+      "📥 No audio files were provided.";
+
+    sendPreloadStatus(
+      0,
+      0,
+      true
+    );
+
+    return;
+
+  }
+
+
+  if (preloadInProgress) {
+
+    return;
+
+  }
+
+
+  preloadInProgress =
+    true;
+
+
+  preloadedSounds.clear();
+
+  preloadedMusic.clear();
+
+
+  let completed = 0;
+
+  let failed = 0;
+
+
+  preloadStatus.textContent =
+    "📥 Preloading 0/" +
+    items.length +
+    "...";
+
+
+  sendPreloadStatus(
+    0,
+    items.length,
+    false
+  );
+
+
+  /*
+   * Load files one at a time.
+   *
+   * This prevents a large library from creating
+   * a huge number of simultaneous requests.
+   */
+
+  for (const item of items) {
+
+    try {
+
+      const audio =
+        await preloadAudio(
+          item.url
+        );
+
+
+      const storedItem = {
+
+        id: item.id,
+
+        name: item.name,
+
+        path: item.path,
+
+        url: item.url,
+
+        audio: audio
+
+      };
+
+
+      if (item.type === "sound") {
+
+        preloadedSounds.set(
+          item.id,
+          storedItem
+        );
+
+      } else if (
+        item.type === "music"
+      ) {
+
+        preloadedMusic.set(
+          item.id,
+          storedItem
+        );
+
+      }
+
+
+      completed++;
+
+
+    } catch (error) {
+
+      console.error(
+        "Preload failed:",
+        item.name,
+        error
+      );
+
+      failed++;
+
+    }
+
+
+    preloadStatus.textContent =
+      "📥 Preloading " +
+      (completed + failed) +
+      "/" +
+      items.length +
+      "...\n" +
+      "Loaded: " +
+      completed +
+      "\n" +
+      "Failed: " +
+      failed;
+
+
+    sendPreloadStatus(
+      completed,
+      items.length,
+      false
+    );
+
+  }
+
+
+  preloadInProgress =
+    false;
+
+
+  if (failed === 0) {
+
+    preloadStatus.textContent =
+      "🟢 All audio preloaded!\n" +
+      completed +
+      " file" +
+      (completed === 1 ? "" : "s") +
+      " ready.";
+
+    sendPreloadStatus(
+      completed,
+      items.length,
+      true
+    );
+
+  } else {
+
+    preloadStatus.textContent =
+      "⚠️ Preload finished.\n" +
+      "Loaded: " +
+      completed +
+      "\n" +
+      "Failed: " +
+      failed;
+
+    sendPreloadStatus(
+      completed,
+      items.length,
+      true
+    );
+
+  }
+
+}
+
+
+// --------------------------------------------------
+// SEND PRELOAD STATUS
+// --------------------------------------------------
+
+async function sendPreloadStatus(
+  loaded,
+  total,
+  complete
+) {
+
+  if (!channel) {
+
+    return;
+
+  }
+
+
+  try {
+
+    await channel.send({
+
+      type: "broadcast",
+
+      event: "player-preload-status",
+
+      payload: {
+
+        name: playerName,
+
+        loaded: loaded,
+
+        total: total,
+
+        complete: complete
+
+      }
+
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Could not send preload status:",
+      error
+    );
+
+  }
+
+}
+
+
+// --------------------------------------------------
+// MANUAL PRELOAD REQUEST
+// --------------------------------------------------
+
+async function requestPreload() {
+
+  if (!channel) {
+
+    return;
+
+  }
+
+
+  preloadStatus.textContent =
+    "📥 Asking host for your audio library...";
+
+
+  try {
+
+    await channel.send({
+
+      type: "broadcast",
+
+      event: "request-preload",
+
+      payload: {
+
+        name: playerName
+
+      }
+
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    preloadStatus.textContent =
+      "🔴 Could not request preload.";
+
+  }
+
+}
+
+
+// --------------------------------------------------
+// PLAY PRELOADED SOUND
+// --------------------------------------------------
+
+async function playPreloadedSound(
+  payload
+) {
 
   if (!audioEnabled) {
 
@@ -186,22 +761,453 @@ function playUrl(url) {
   }
 
 
+  let sound = null;
+
+
+  /*
+   * Prefer the preloaded copy.
+   */
+
+  if (payload.id) {
+
+    sound =
+      preloadedSounds.get(
+        payload.id
+      );
+
+  }
+
+
+  /*
+   * Fallback to name if necessary.
+   */
+
+  if (
+    !sound &&
+    payload.file
+  ) {
+
+    for (
+      const item of preloadedSounds.values()
+    ) {
+
+      if (
+        item.name === payload.file
+      ) {
+
+        sound = item;
+
+        break;
+
+      }
+
+    }
+
+  }
+
+
+  /*
+   * If the sound was not preloaded,
+   * use the URL sent by the host.
+   */
+
+  if (!sound && payload.url) {
+
+    try {
+
+      const audio =
+        new Audio(
+          payload.url
+        );
+
+      await audio.play();
+
+      status.textContent =
+        "🔊 Playing: " +
+        payload.file;
+
+      return;
+
+    } catch (error) {
+
+      console.error(error);
+
+      status.textContent =
+        "🔴 Audio playback failed.";
+
+      return;
+
+    }
+
+  }
+
+
+  if (!sound) {
+
+    status.textContent =
+      "🔴 Sound is not available.";
+
+    return;
+
+  }
+
+
+  /*
+   * Use the already-loaded audio.
+   *
+   * Clone it so multiple sound effects can
+   * overlap without interrupting one another.
+   */
+
   const audio =
-    new Audio(url);
+    sound.audio.cloneNode(true);
+
+
+  audio.volume = 1;
+
+
+  status.textContent =
+    "🔊 Playing: " +
+    sound.name;
 
 
   audio.play()
     .catch(error => {
 
       console.error(
-        "Audio playback failed:",
+        "Sound playback failed:",
         error
       );
 
       status.textContent =
-        "🔴 Audio playback failed.";
+        "🔴 Sound playback failed.";
 
     });
+
+}
+
+
+// --------------------------------------------------
+// PLAY MUSIC
+// --------------------------------------------------
+
+async function playMusic(
+  payload
+) {
+
+  if (musicAudio) {
+
+    musicAudio.pause();
+
+    musicAudio.currentTime =
+      0;
+
+    musicAudio = null;
+
+  }
+
+
+  currentMusicRepeat =
+    payload.repeat === true;
+
+
+  let song = null;
+
+
+  /*
+   * Prefer the preloaded song.
+   */
+
+  if (payload.id) {
+
+    song =
+      preloadedMusic.get(
+        payload.id
+      );
+
+  }
+
+
+  /*
+   * Fallback to filename.
+   */
+
+  if (
+    !song &&
+    payload.file
+  ) {
+
+    for (
+      const item of preloadedMusic.values()
+    ) {
+
+      if (
+        item.name === payload.file
+      ) {
+
+        song = item;
+
+        break;
+
+      }
+
+    }
+
+  }
+
+
+  /*
+   * If the song wasn't preloaded,
+   * create it from the signed URL.
+   */
+
+  if (!song) {
+
+    if (!payload.url) {
+
+      status.textContent =
+        "🔴 Music is not available.";
+
+      return;
+
+    }
+
+
+    musicAudio =
+      new Audio(
+        payload.url
+      );
+
+  } else {
+
+    /*
+     * Use the preloaded audio element.
+     */
+
+    musicAudio =
+      song.audio.cloneNode(true);
+
+  }
+
+
+  /*
+   * Repeat handling.
+   *
+   * The song is restarted approximately
+   * 0.1 seconds before the natural end.
+   */
+
+  musicAudio.addEventListener(
+    "timeupdate",
+    handleMusicRepeat
+  );
+
+
+  status.textContent =
+    "🎵 Playing: " +
+    (
+      song
+        ? song.name
+        : payload.file
+    );
+
+
+  if (!audioEnabled) {
+
+    status.textContent =
+      "⚠️ Music received. Click Enable Audio.";
+
+    return;
+
+  }
+
+
+  musicAudio.play()
+    .catch(error => {
+
+      console.error(
+        "Music playback failed:",
+        error
+      );
+
+      status.textContent =
+        "🔴 Music playback failed.";
+
+    });
+
+}
+
+
+// --------------------------------------------------
+// MUSIC REPEAT
+// --------------------------------------------------
+
+function handleMusicRepeat() {
+
+  if (
+    !musicAudio ||
+    !currentMusicRepeat
+  ) {
+
+    return;
+
+  }
+
+
+  if (
+    !Number.isFinite(
+      musicAudio.duration
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  /*
+   * Restart about 0.1 seconds before the
+   * actual end of the track.
+   */
+
+  if (
+    musicAudio.currentTime >=
+    musicAudio.duration - 0.1
+  ) {
+
+    musicAudio.currentTime =
+      0;
+
+  }
+
+}
+
+
+// --------------------------------------------------
+// CHANNEL SETUP
+// --------------------------------------------------
+
+function setupChannel(code) {
+
+  channel =
+    supabase.channel(
+      "soundboard-" + code
+    );
+
+
+  // ------------------------------------------------
+  // PLAY SOUND
+  // ------------------------------------------------
+
+  channel.on(
+    "broadcast",
+    {
+      event: "play-sound"
+    },
+    message => {
+
+      const payload =
+        message.payload;
+
+
+      if (!payload) {
+
+        return;
+
+      }
+
+
+      playPreloadedSound(
+        payload
+      );
+
+    }
+  );
+
+
+  // ------------------------------------------------
+  // PLAY MUSIC
+  // ------------------------------------------------
+
+  channel.on(
+    "broadcast",
+    {
+      event: "play-music"
+    },
+    message => {
+
+      const payload =
+        message.payload;
+
+
+      if (!payload) {
+
+        return;
+
+      }
+
+
+      playMusic(
+        payload
+      );
+
+    }
+  );
+
+
+  // ------------------------------------------------
+  // PRELOAD LIBRARY
+  // ------------------------------------------------
+
+  channel.on(
+    "broadcast",
+    {
+      event: "preload-library"
+    },
+    message => {
+
+      const payload =
+        message.payload;
+
+
+      if (
+        !payload ||
+        !Array.isArray(
+          payload.files
+        )
+      ) {
+
+        return;
+
+      }
+
+
+      preloadLibrary(
+        payload.files
+      );
+
+    }
+  );
+
+
+  // ------------------------------------------------
+  // PRELOAD REQUEST
+  //
+  // This lets the host tell players that
+  // they should begin preloading.
+  // ------------------------------------------------
+
+  channel.on(
+    "broadcast",
+    {
+      event: "preload-request"
+    },
+    () => {
+
+      requestPreload();
+
+    }
+  );
 
 }
 
@@ -219,10 +1225,68 @@ joinButton.onclick =
         .toUpperCase();
 
 
+    const rawName =
+      nameInput.value;
+
+
+    const name =
+      cleanPlayerName(
+        rawName
+      );
+
+
+    // ------------------------------------------------
+    // VALIDATE NAME
+    // ------------------------------------------------
+
+    if (!name) {
+
+      message.textContent =
+        "Please enter a name.";
+
+      nameInput.focus();
+
+      return;
+
+    }
+
+
+    if (name.length < 2) {
+
+      message.textContent =
+        "Your name must be at least 2 characters.";
+
+      nameInput.focus();
+
+      return;
+
+    }
+
+
+    if (
+      !isNameAppropriate(name)
+    ) {
+
+      message.textContent =
+        "Please choose an appropriate name.";
+
+      nameInput.focus();
+
+      return;
+
+    }
+
+
+    // ------------------------------------------------
+    // VALIDATE CODE
+    // ------------------------------------------------
+
     if (code.length !== 8) {
 
       message.textContent =
         "Enter the 8-character code.";
+
+      codeInput.focus();
 
       return;
 
@@ -232,9 +1296,14 @@ joinButton.onclick =
     joinButton.disabled =
       true;
 
+
     message.textContent =
       "Connecting...";
 
+
+    // ------------------------------------------------
+    // REMOVE OLD CHANNEL
+    // ------------------------------------------------
 
     if (channel) {
 
@@ -242,114 +1311,37 @@ joinButton.onclick =
         channel
       );
 
+      channel = null;
+
     }
 
 
-    channel =
-      supabase.channel(
-        "soundboard-" + code
-      );
+    currentSessionCode =
+      code;
+
+    playerName =
+      name;
 
 
-    // SOUND
+    // ------------------------------------------------
+    // CREATE CHANNEL
+    // ------------------------------------------------
 
-    channel.on(
-      "broadcast",
-      {
-        event: "play-sound"
-      },
-      message => {
-
-        const payload =
-          message.payload;
-
-        if (
-          payload &&
-          payload.url
-        ) {
-
-          status.textContent =
-            "🔊 Playing: " +
-            payload.file;
-
-          playUrl(payload.url);
-
-        }
-
-      }
+    setupChannel(
+      code
     );
 
 
-    // MUSIC
-
-    channel.on(
-      "broadcast",
-      {
-        event: "play-music"
-      },
-      message => {
-
-        const payload =
-          message.payload;
-
-        if (
-          !payload ||
-          !payload.url
-        ) {
-
-          return;
-
-        }
-
-
-        if (musicAudio) {
-
-          musicAudio.pause();
-
-        }
-
-
-        musicAudio =
-          new Audio(
-            payload.url
-          );
-
-
-        status.textContent =
-          "🎵 Playing: " +
-          payload.file;
-
-
-        if (!audioEnabled) {
-
-          status.textContent =
-            "⚠️ Music received. Click Enable Audio.";
-
-          return;
-
-        }
-
-
-        musicAudio.play()
-          .catch(error => {
-
-            console.error(error);
-
-            status.textContent =
-              "🔴 Music playback failed.";
-
-          });
-
-      }
-    );
-
-
+    // ------------------------------------------------
     // CONNECT
+    // ------------------------------------------------
 
     channel.subscribe(
-      state => {
+      async state => {
 
-        if (state === "SUBSCRIBED") {
+        if (
+          state === "SUBSCRIBED"
+        ) {
 
           join.style.display =
             "none";
@@ -357,13 +1349,54 @@ joinButton.onclick =
           player.style.display =
             "block";
 
+
+          playerNameElement.textContent =
+            playerName;
+
+
+          sessionCodeElement.textContent =
+            currentSessionCode;
+
+
           message.textContent =
             "";
+
 
           status.textContent =
             audioEnabled
               ? "🟢 Connected — waiting for sounds."
               : "🟢 Connected — click Enable Audio.";
+
+
+          /*
+           * Tell the host that this player
+           * has joined.
+           */
+
+          await channel.send({
+
+            type: "broadcast",
+
+            event: "player-join",
+
+            payload: {
+
+              name: playerName
+
+            }
+
+          });
+
+
+          /*
+           * Ask the host for the library.
+           */
+
+          preloadStatus.textContent =
+            "📥 Requesting audio preload...";
+
+
+          await requestPreload();
 
         }
 
@@ -376,15 +1409,55 @@ joinButton.onclick =
           joinButton.disabled =
             false;
 
+
           message.textContent =
             "Could not connect to that session.";
+
 
           status.textContent =
             "🔴 Connection failed.";
 
+
+          if (channel) {
+
+            await supabase.removeChannel(
+              channel
+            );
+
+            channel = null;
+
+          }
+
         }
 
       }
+    );
+
+  };
+
+
+// --------------------------------------------------
+// MANUAL PRELOAD BUTTON
+// --------------------------------------------------
+
+preloadButton.onclick =
+  async () => {
+
+    preloadButton.disabled =
+      true;
+
+
+    await requestPreload();
+
+
+    setTimeout(
+      () => {
+
+        preloadButton.disabled =
+          false;
+
+      },
+      2000
     );
 
   };
@@ -401,9 +1474,21 @@ leaveButton.onclick =
 
       musicAudio.pause();
 
+      musicAudio.src = "";
+
       musicAudio = null;
 
     }
+
+
+    /*
+     * Release references to preloaded
+     * audio elements.
+     */
+
+    preloadedSounds.clear();
+
+    preloadedMusic.clear();
 
 
     if (channel) {
@@ -423,11 +1508,36 @@ leaveButton.onclick =
     player.style.display =
       "none";
 
+
     codeInput.value =
       "";
 
+    nameInput.value =
+      "";
+
+
     joinButton.disabled =
       false;
+
+
+    playerName =
+      "";
+
+    currentSessionCode =
+      null;
+
+
+    playerNameElement.textContent =
+      "---";
+
+
+    sessionCodeElement.textContent =
+      "--------";
+
+
+    preloadStatus.textContent =
+      "Waiting for preload request...";
+
 
     status.textContent =
       "Enter the host's session code.";
@@ -436,14 +1546,36 @@ leaveButton.onclick =
 
 
 // --------------------------------------------------
-// ENTER KEY
+// ENTER KEY — NAME
+// --------------------------------------------------
+
+nameInput.addEventListener(
+  "keydown",
+  event => {
+
+    if (
+      event.key === "Enter"
+    ) {
+
+      codeInput.focus();
+
+    }
+
+  }
+);
+
+
+// --------------------------------------------------
+// ENTER KEY — CODE
 // --------------------------------------------------
 
 codeInput.addEventListener(
   "keydown",
   event => {
 
-    if (event.key === "Enter") {
+    if (
+      event.key === "Enter"
+    ) {
 
       joinButton.click();
 
