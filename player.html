@@ -118,7 +118,31 @@
 
     const keys =
       await fetch("keys.json")
-        .then(r => r.json());
+        .then(response => {
+
+          if (!response.ok) {
+
+            throw new Error(
+              "Could not load keys.json."
+            );
+
+          }
+
+          return response.json();
+
+        });
+
+
+    if (
+      !keys.supabaseUrl ||
+      !keys.supabaseKey
+    ) {
+
+      throw new Error(
+        "keys.json is missing supabaseUrl or supabaseKey."
+      );
+
+    }
 
 
     const supabase =
@@ -170,6 +194,8 @@
     let musicAudio = null;
 
     let currentMusicFile = null;
+
+    let currentMusicUrl = null;
 
     let repeatMusic = false;
 
@@ -239,8 +265,19 @@
 
         if (channel) {
 
-          await supabase
-            .removeChannel(channel);
+          try {
+
+            await supabase
+              .removeChannel(channel);
+
+          } catch (error) {
+
+            console.warn(
+              "Could not remove previous channel:",
+              error
+            );
+
+          }
 
           channel = null;
 
@@ -248,6 +285,9 @@
 
 
         connected = false;
+
+
+        stopMusic();
 
 
         channel =
@@ -277,7 +317,11 @@
               message?.payload;
 
 
-            if (!payload) return;
+            if (!payload) {
+
+              return;
+
+            }
 
 
             if (!audioEnabled) {
@@ -290,16 +334,90 @@
             }
 
 
+            /*
+             * Built-in/static sound.
+             *
+             * Example:
+             *
+             * {
+             *   source: "github",
+             *   file: "airhorn.mp3"
+             * }
+             */
+
             if (
               payload.source ===
               "github"
             ) {
 
-              playSound(
+              if (!payload.file) {
+
+                console.warn(
+                  "GitHub sound payload has no file."
+                );
+
+                return;
+
+              }
+
+
+              playGitHubSound(
                 payload.file
               );
 
+
+              return;
+
             }
+
+
+            /*
+             * Supabase Storage sound.
+             *
+             * Example:
+             *
+             * {
+             *   source: "supabase",
+             *   file: "laugh.mp3",
+             *   url: "https://...."
+             * }
+             */
+
+            if (
+              payload.source ===
+              "supabase"
+            ) {
+
+              if (!payload.url) {
+
+                console.error(
+                  "Supabase sound payload has no URL.",
+                  payload
+                );
+
+
+                status.textContent =
+                  "🔴 Uploaded sound has no playback URL.";
+
+                return;
+
+              }
+
+
+              playSupabaseSound(
+                payload.url
+              );
+
+
+              return;
+
+            }
+
+
+            console.warn(
+              "Unknown sound source:",
+              payload.source
+            );
 
           }
         );
@@ -326,7 +444,11 @@
               message?.payload;
 
 
-            if (!payload) return;
+            if (!payload) {
+
+              return;
+
+            }
 
 
             if (!audioEnabled) {
@@ -339,72 +461,95 @@
             }
 
 
+            /*
+             * Built-in/static music.
+             */
+
             if (
-              payload.source !==
+              payload.source ===
               "github"
             ) {
+
+              if (!payload.file) {
+
+                console.warn(
+                  "GitHub music payload has no file."
+                );
+
+                return;
+
+              }
+
+
+              currentMusicFile =
+                payload.file;
+
+              currentMusicUrl =
+                getGitHubMusicUrl(
+                  payload.file
+                );
+
+
+              playMusicUrl(
+                currentMusicUrl,
+                payload.file
+              );
+
 
               return;
 
             }
 
 
-            currentMusicFile =
-              payload.file;
+            /*
+             * Supabase Storage music.
+             */
+
+            if (
+              payload.source ===
+              "supabase"
+            ) {
+
+              if (!payload.url) {
+
+                console.error(
+                  "Supabase music payload has no URL.",
+                  payload
+                );
 
 
-            stopMusic();
+                status.textContent =
+                  "🔴 Uploaded music has no playback URL.";
+
+                return;
+
+              }
 
 
-            musicAudio =
-              new Audio(
-                "music/" +
-                encodeURIComponent(
-                  payload.file
-                )
+              currentMusicFile =
+                payload.file ||
+                "Uploaded music";
+
+
+              currentMusicUrl =
+                payload.url;
+
+
+              playMusicUrl(
+                currentMusicUrl,
+                currentMusicFile
               );
 
 
-            musicAudio.loop =
-              false;
-
-
-            musicAudio.onended =
-              () => {
-
-                if (!repeatMusic) {
-
-                  status.textContent =
-                    "🟢 Music finished";
-
-                }
-
-              };
-
-
-            status.textContent =
-              "🎵 Playing: " +
-              payload.file;
-
-
-            try {
-
-              await musicAudio.play();
-
-              scheduleRepeat();
-
-            } catch (error) {
-
-              console.error(
-                "Music playback failed:",
-                error
-              );
-
-
-              status.textContent =
-                "🔴 Music playback failed.";
+              return;
 
             }
+
+
+            console.warn(
+              "Unknown music source:",
+              payload.source
+            );
 
           }
         );
@@ -421,8 +566,11 @@
           },
           () => {
 
-            if (!musicAudio)
+            if (!musicAudio) {
+
               return;
+
+            }
 
 
             musicAudio.pause();
@@ -433,7 +581,8 @@
             );
 
 
-            repeatTimer = null;
+            repeatTimer =
+              null;
 
 
             status.textContent =
@@ -458,7 +607,11 @@
               message?.payload;
 
 
-            if (!payload) return;
+            if (!payload) {
+
+              return;
+
+            }
 
 
             repeatMusic =
@@ -475,7 +628,8 @@
                 repeatTimer
               );
 
-              repeatTimer = null;
+              repeatTimer =
+                null;
 
             }
 
@@ -527,6 +681,9 @@
                   ? "🟢 Connected — waiting for sounds"
                   : "🟢 Connected — click Enable Audio";
 
+
+              return;
+
             }
 
 
@@ -549,7 +706,13 @@
                 false;
 
 
-              console.error(error);
+              console.error(
+                "Supabase channel error:",
+                error
+              );
+
+
+              return;
 
             }
 
@@ -568,6 +731,18 @@
               joinButton.disabled =
                 false;
 
+
+              return;
+
+            }
+
+
+            if (
+              state === "CLOSED"
+            ) {
+
+              connected = false;
+
             }
 
           }
@@ -577,27 +752,166 @@
 
 
     // --------------------------------------------------
-    // PLAY SOUND
+    // PLAY BUILT-IN GITHUB SOUND
     // --------------------------------------------------
 
-    function playSound(file) {
+    function playGitHubSound(file) {
+
+      const url =
+        "sounds/" +
+        encodeURIComponent(file);
+
 
       const audio =
-        new Audio(
-          "sounds/" +
-          encodeURIComponent(file)
-        );
+        new Audio(url);
 
 
       audio.play()
         .catch(error => {
 
           console.error(
-            "Sound playback failed:",
+            "GitHub sound playback failed:",
             error
           );
 
+
+          status.textContent =
+            "🔴 Sound playback failed.";
+
         });
+
+    }
+
+
+    // --------------------------------------------------
+    // PLAY SUPABASE SOUND
+    // --------------------------------------------------
+
+    function playSupabaseSound(url) {
+
+      const audio =
+        new Audio(url);
+
+
+      audio.play()
+        .then(() => {
+
+          status.textContent =
+            "🟢 Playing uploaded sound";
+
+        })
+        .catch(error => {
+
+          console.error(
+            "Supabase sound playback failed:",
+            error
+          );
+
+
+          status.textContent =
+            "🔴 Uploaded sound playback failed.";
+
+        });
+
+    }
+
+
+    // --------------------------------------------------
+    // GET BUILT-IN MUSIC URL
+    // --------------------------------------------------
+
+    function getGitHubMusicUrl(file) {
+
+      return (
+        "music/" +
+        encodeURIComponent(file)
+      );
+
+    }
+
+
+    // --------------------------------------------------
+    // PLAY MUSIC URL
+    // --------------------------------------------------
+
+    async function playMusicUrl(
+      url,
+      displayFile
+    ) {
+
+      stopMusic();
+
+
+      musicAudio =
+        new Audio(url);
+
+
+      musicAudio.loop =
+        false;
+
+
+      musicAudio.preload =
+        "auto";
+
+
+      musicAudio.onended =
+        () => {
+
+          if (!repeatMusic) {
+
+            status.textContent =
+              "🟢 Music finished";
+
+          }
+
+        };
+
+
+      status.textContent =
+        "🎵 Playing: " +
+        displayFile;
+
+
+      try {
+
+        await musicAudio.play();
+
+
+        /*
+         * For repeat music we need the duration
+         * before scheduling the overlap.
+         */
+
+        if (
+          musicAudio.readyState >= 1
+        ) {
+
+          scheduleRepeat();
+
+        } else {
+
+          musicAudio.addEventListener(
+            "loadedmetadata",
+            scheduleRepeat,
+            {
+              once: true
+            }
+          );
+
+        }
+
+      } catch (error) {
+
+        console.error(
+          "Music playback failed:",
+          error
+        );
+
+
+        status.textContent =
+          "🔴 Music playback failed.";
+
+      }
 
     }
 
@@ -613,12 +927,22 @@
       );
 
 
-      if (!musicAudio)
-        return;
+      repeatTimer =
+        null;
 
 
-      if (!repeatMusic)
+      if (!musicAudio) {
+
         return;
+
+      }
+
+
+      if (!repeatMusic) {
+
+        return;
+
+      }
 
 
       const remaining =
@@ -630,7 +954,15 @@
       if (
         !Number.isFinite(
           remaining
-        ) ||
+        )
+      ) {
+
+        return;
+
+      }
+
+
+      if (
         remaining <= 0
       ) {
 
@@ -654,30 +986,49 @@
 
     function repeatSong() {
 
-      if (!musicAudio)
+      if (!musicAudio) {
+
         return;
 
+      }
 
-      if (!repeatMusic)
+
+      if (!repeatMusic) {
+
         return;
+
+      }
 
 
       const oldAudio =
         musicAudio;
 
 
-      const file =
-        currentMusicFile;
+      const url =
+        currentMusicUrl;
+
+
+      if (!url) {
+
+        console.error(
+          "Cannot repeat music: no current URL."
+        );
+
+        return;
+
+      }
 
 
       const newAudio =
-        new Audio(
-          "music/" +
-          encodeURIComponent(file)
-        );
+        new Audio(url);
 
 
-      newAudio.volume = 1;
+      newAudio.volume =
+        1;
+
+
+      newAudio.preload =
+        "auto";
 
 
       newAudio.play()
@@ -691,9 +1042,12 @@
         });
 
 
-      const fadeSteps = 10;
+      const fadeSteps =
+        10;
 
-      let step = 0;
+
+      let step =
+        0;
 
 
       const fadeTimer =
@@ -722,8 +1076,21 @@
 
               oldAudio.pause();
 
-              oldAudio.currentTime =
-                0;
+
+              try {
+
+                oldAudio.currentTime =
+                  0;
+
+              } catch (error) {
+
+                console.warn(
+                  "Could not reset old audio:",
+                  error
+                );
+
+              }
+
 
               oldAudio.volume =
                 1;
@@ -762,20 +1129,42 @@
       );
 
 
-      repeatTimer = null;
+      repeatTimer =
+        null;
 
 
       if (musicAudio) {
 
         musicAudio.pause();
 
-        musicAudio.currentTime =
-          0;
+
+        try {
+
+          musicAudio.currentTime =
+            0;
+
+        } catch (error) {
+
+          console.warn(
+            "Could not reset music:",
+            error
+          );
+
+        }
 
       }
 
 
-      musicAudio = null;
+      musicAudio =
+        null;
+
+
+      currentMusicFile =
+        null;
+
+
+      currentMusicUrl =
+        null;
 
     }
 
@@ -792,15 +1181,29 @@
 
         if (channel) {
 
-          await supabase
-            .removeChannel(channel);
+          try {
 
-          channel = null;
+            await supabase
+              .removeChannel(channel);
+
+          } catch (error) {
+
+            console.warn(
+              "Could not remove channel:",
+              error
+            );
+
+          }
+
+
+          channel =
+            null;
 
         }
 
 
-        connected = false;
+        connected =
+          false;
 
 
         playerPanel.style.display =
