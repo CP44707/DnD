@@ -1,0 +1,526 @@
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Soundboard Player</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      background: #222;
+      color: white;
+    }
+
+    #status {
+      white-space: pre-wrap;
+      margin-bottom: 20px;
+    }
+
+    #enableAudio {
+      padding: 20px 30px;
+      font-size: 18px;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+
+    #enableAudio.enabled {
+      background: #3a3;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Soundboard Player</h1>
+
+  <p id="status">Connecting...</p>
+
+  <button id="enableAudio">
+    🔊 Enable Audio
+  </button>
+
+
+  <script type="module">
+
+    import { createClient }
+      from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+
+    const status = document.getElementById("status");
+    const enableButton = document.getElementById("enableAudio");
+
+
+    // --------------------------------------------------
+    // AUDIO
+    // --------------------------------------------------
+
+    let audioEnabled = false;
+
+    let musicAudio = null;
+
+    let currentMusicFile = null;
+
+    let repeatMusic = false;
+
+    // Start the next copy this many seconds early.
+    const REPEAT_OVERLAP = 0.25;
+
+    let repeatTimer = null;
+
+
+    // Enable audio after user interaction
+    enableButton.onclick = () => {
+
+      audioEnabled = true;
+
+      enableButton.textContent = "🔊 Audio Enabled";
+
+      enableButton.classList.add("enabled");
+
+      status.textContent =
+        "🟢 Audio enabled — waiting for sounds";
+
+    };
+
+
+    // --------------------------------------------------
+    // SUPABASE
+    // --------------------------------------------------
+
+    const keys = await fetch("keys.json").then(r => r.json());
+
+
+    const supabase = createClient(
+      keys.supabaseUrl,
+      keys.supabaseKey
+    );
+
+
+    const channel = supabase.channel("soundboard");
+
+
+    // --------------------------------------------------
+    // SOUND EFFECTS
+    // --------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      { event: "play-sound" },
+      async (message) => {
+
+        console.log("SOUND RECEIVED:", message);
+
+
+        const file = message?.payload?.file;
+
+
+        if (!file) {
+
+          console.error(
+            "No sound filename received."
+          );
+
+          return;
+
+        }
+
+
+        if (!audioEnabled) {
+
+          status.textContent =
+            "⚠️ Sound received — click Enable Audio.";
+
+          return;
+
+        }
+
+
+        console.log("Playing sound:", file);
+
+
+        const audio = new Audio(
+          "sounds/" + encodeURIComponent(file)
+        );
+
+
+        audio.play().catch(error => {
+
+          console.error(
+            "Sound playback failed:",
+            error
+          );
+
+        });
+
+      }
+    );
+
+
+    // --------------------------------------------------
+    // MUSIC PLAY
+    // --------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      { event: "play-music" },
+      async (message) => {
+
+        console.log("MUSIC PLAY:", message);
+
+
+        const file = message?.payload?.file;
+
+
+        if (!file) return;
+
+
+        if (!audioEnabled) {
+
+          status.textContent =
+            "⚠️ Music received — click Enable Audio.";
+
+          return;
+
+        }
+
+
+        currentMusicFile = file;
+
+
+        // Stop previous song
+        stopMusic();
+
+
+        // Create new music player
+        musicAudio = new Audio(
+          "music/" + encodeURIComponent(file)
+        );
+
+
+        musicAudio.loop = false;
+
+
+        musicAudio.onended = () => {
+
+          console.log("Music ended.");
+
+
+          if (!repeatMusic) {
+
+            status.textContent =
+              "🟢 Music finished";
+
+          }
+
+        };
+
+
+        status.textContent =
+          "🎵 Playing: " + file;
+
+
+        try {
+
+          await musicAudio.play();
+
+          scheduleRepeat();
+
+        } catch (error) {
+
+          console.error(
+            "Music playback failed:",
+            error
+          );
+
+          status.textContent =
+            "🔴 Music playback failed.";
+
+        }
+
+      }
+    );
+
+
+    // --------------------------------------------------
+    // SCHEDULE REPEAT
+    // --------------------------------------------------
+
+    function scheduleRepeat() {
+
+      clearTimeout(repeatTimer);
+
+      if (!musicAudio) return;
+
+      if (!repeatMusic) return;
+
+
+      // Wait until we are 0.25 seconds
+      // from the end of the song.
+      const remaining =
+        musicAudio.duration -
+        musicAudio.currentTime -
+        REPEAT_OVERLAP;
+
+
+      const delay =
+        Math.max(0, remaining * 1000);
+
+
+      repeatTimer = setTimeout(() => {
+
+        repeatSong();
+
+      }, delay);
+
+    }
+
+
+    // --------------------------------------------------
+    // REPEAT SONG
+    // --------------------------------------------------
+
+    function repeatSong() {
+
+      if (!musicAudio) return;
+
+      if (!repeatMusic) return;
+
+
+      const oldAudio = musicAudio;
+
+
+      const file = currentMusicFile;
+
+
+      // Start another copy of the same song.
+      const newAudio = new Audio(
+        "music/" + encodeURIComponent(file)
+      );
+
+
+      newAudio.volume = 1;
+
+
+      // Start the new copy.
+      newAudio.play().catch(error => {
+
+        console.error(
+          "Repeat playback failed:",
+          error
+        );
+
+      });
+
+
+      // Fade the old copy out during the
+      // 0.25 second overlap.
+      const fadeSteps = 10;
+
+      let step = 0;
+
+
+      const fadeTimer = setInterval(() => {
+
+        step++;
+
+
+        oldAudio.volume =
+          Math.max(
+            0,
+            1 - (step / fadeSteps)
+          );
+
+
+        if (step >= fadeSteps) {
+
+          clearInterval(fadeTimer);
+
+
+          oldAudio.pause();
+
+          oldAudio.currentTime = 0;
+
+          oldAudio.volume = 1;
+
+        }
+
+      }, (REPEAT_OVERLAP * 1000) / fadeSteps);
+
+
+      musicAudio = newAudio;
+
+
+      // Schedule the next repeat.
+      newAudio.addEventListener(
+        "loadedmetadata",
+        () => {
+
+          scheduleRepeat();
+
+        },
+        { once: true }
+      );
+
+    }
+
+
+    // --------------------------------------------------
+    // STOP MUSIC
+    // --------------------------------------------------
+
+    function stopMusic() {
+
+      clearTimeout(repeatTimer);
+
+      repeatTimer = null;
+
+
+      if (musicAudio) {
+
+        musicAudio.pause();
+
+        musicAudio.currentTime = 0;
+
+      }
+
+      musicAudio = null;
+
+    }
+
+
+    // --------------------------------------------------
+    // MUSIC PAUSE
+    // --------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      { event: "pause-music" },
+      () => {
+
+        console.log("MUSIC PAUSE");
+
+
+        if (musicAudio) {
+
+          musicAudio.pause();
+
+          clearTimeout(repeatTimer);
+
+          repeatTimer = null;
+
+
+          status.textContent =
+            "⏸ Music paused";
+
+        }
+
+      }
+    );
+
+
+    // --------------------------------------------------
+    // MUSIC REPEAT
+    // --------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      { event: "repeat-music" },
+      (message) => {
+
+        console.log("MUSIC REPEAT:", message);
+
+
+        const file = message?.payload?.file;
+
+        const repeat =
+          message?.payload?.repeat;
+
+
+        if (
+          file &&
+          currentMusicFile !== file
+        ) {
+
+          return;
+
+        }
+
+
+        repeatMusic = !!repeat;
+
+
+        if (repeatMusic) {
+
+          scheduleRepeat();
+
+        } else {
+
+          clearTimeout(repeatTimer);
+
+          repeatTimer = null;
+
+        }
+
+
+        status.textContent =
+          repeatMusic
+            ? "🔁 Music repeating"
+            : "🎵 Repeat off";
+
+      }
+    );
+
+
+    // --------------------------------------------------
+    // CONNECT
+    // --------------------------------------------------
+
+    channel.subscribe((state, error) => {
+
+      console.log("STATE:", state);
+      console.log("ERROR:", error);
+
+
+      if (state === "SUBSCRIBED") {
+
+        if (audioEnabled) {
+
+          status.textContent =
+            "🟢 Connected — waiting for sounds";
+
+        } else {
+
+          status.textContent =
+            "🟢 Connected — click Enable Audio";
+
+        }
+
+      }
+
+
+      if (state === "CHANNEL_ERROR") {
+
+        status.textContent =
+          "🔴 Realtime connection error";
+
+        console.error(error);
+
+      }
+
+
+      if (state === "TIMED_OUT") {
+
+        status.textContent =
+          "🔴 Realtime connection timed out";
+
+      }
+
+    });
+
+  </script>
+
+</body>
+</html>
+```
