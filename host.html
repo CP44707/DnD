@@ -22,6 +22,11 @@
       cursor: pointer;
     }
 
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
     #host {
       display: none;
     }
@@ -46,6 +51,13 @@
       background: #444;
       padding: 10px;
       border-radius: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file button {
+      flex-shrink: 0;
     }
 
     #code {
@@ -57,6 +69,21 @@
 
     #status {
       white-space: pre-wrap;
+    }
+
+    #userInfo {
+      color: #aaa;
+      margin-bottom: 15px;
+    }
+
+    .empty {
+      color: #888;
+      font-style: italic;
+      padding: 10px 0;
+    }
+
+    .upload-row {
+      margin-bottom: 15px;
     }
   </style>
 </head>
@@ -73,13 +100,23 @@
 
   <h2>Host Login</h2>
 
-  <input id="email" type="email" placeholder="Email">
+  <input
+    id="email"
+    type="email"
+    placeholder="Email"
+  >
   <br>
 
-  <input id="password" type="password" placeholder="Password">
+  <input
+    id="password"
+    type="password"
+    placeholder="Password"
+  >
   <br>
 
-  <button id="loginButton">Login</button>
+  <button id="loginButton">
+    Login
+  </button>
 
   <p id="loginMessage"></p>
 
@@ -94,12 +131,19 @@
 
     <h2>Session</h2>
 
+    <div id="userInfo"></div>
+
     <p>Give this code to the player:</p>
 
     <div id="code">--------</div>
 
-    <button id="newCode">🔄 New Code</button>
-    <button id="logout">Logout</button>
+    <button id="newCode">
+      🔄 New Code
+    </button>
+
+    <button id="logout">
+      Logout
+    </button>
 
   </div>
 
@@ -108,15 +152,19 @@
 
     <h2>🔊 Sounds</h2>
 
-    <input
-      id="soundUpload"
-      type="file"
-      accept="audio/*"
-    >
+    <div class="upload-row">
 
-    <button id="uploadSound">
-      Upload Sound
-    </button>
+      <input
+        id="soundUpload"
+        type="file"
+        accept="audio/*"
+      >
+
+      <button id="uploadSound">
+        Upload Sound
+      </button>
+
+    </div>
 
     <div id="sounds"></div>
 
@@ -127,15 +175,19 @@
 
     <h2>🎵 Music</h2>
 
-    <input
-      id="musicUpload"
-      type="file"
-      accept="audio/*"
-    >
+    <div class="upload-row">
 
-    <button id="uploadMusic">
-      Upload Music
-    </button>
+      <input
+        id="musicUpload"
+        type="file"
+        accept="audio/*"
+      >
+
+      <button id="uploadMusic">
+        Upload Music
+      </button>
+
+    </div>
 
     <div id="music"></div>
 
@@ -190,6 +242,9 @@ const sounds =
 const music =
   document.getElementById("music");
 
+const userInfo =
+  document.getElementById("userInfo");
+
 
 // --------------------------------------------------
 // STATE
@@ -231,6 +286,105 @@ function generateCode() {
 
 
 // --------------------------------------------------
+// GET CURRENT USER
+// --------------------------------------------------
+
+async function getCurrentUser() {
+
+  const {
+    data,
+    error
+  } =
+    await supabase.auth.getUser();
+
+  if (error) {
+
+    console.error(error);
+
+    return null;
+
+  }
+
+  return data.user;
+
+}
+
+
+// --------------------------------------------------
+// LOAD USER LIBRARY
+// --------------------------------------------------
+
+async function loadLibrary() {
+
+  const user =
+    await getCurrentUser();
+
+  if (!user) {
+
+    uploadedSounds = [];
+    uploadedMusic = [];
+
+    renderSounds();
+    renderMusic();
+
+    return;
+
+  }
+
+
+  status.textContent =
+    "Loading your library...";
+
+
+  const {
+    data,
+    error
+  } =
+    await supabase
+      .from("soundboard_files")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", {
+        ascending: true
+      });
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Failed to load library:\n" +
+      error.message;
+
+    return;
+
+  }
+
+
+  uploadedSounds =
+    data.filter(
+      file => file.type === "sound"
+    );
+
+
+  uploadedMusic =
+    data.filter(
+      file => file.type === "music"
+    );
+
+
+  renderSounds();
+  renderMusic();
+
+
+  status.textContent =
+    "🟢 Library loaded";
+
+}
+
+
+// --------------------------------------------------
 // CREATE SESSION
 // --------------------------------------------------
 
@@ -238,23 +392,32 @@ async function createSession() {
 
   if (channel) {
 
-    await supabase.removeChannel(channel);
+    await supabase.removeChannel(
+      channel
+    );
+
+    channel = null;
 
   }
+
 
   sessionCode =
     generateCode();
 
+
   codeElement.textContent =
     sessionCode;
 
+
   status.textContent =
     "Connecting...";
+
 
   channel =
     supabase.channel(
       "soundboard-" + sessionCode
     );
+
 
   channel.subscribe(
     state => {
@@ -275,7 +438,7 @@ async function createSession() {
 
 
 // --------------------------------------------------
-// UPLOAD
+// UPLOAD FILE
 // --------------------------------------------------
 
 async function uploadFile(
@@ -286,26 +449,27 @@ async function uploadFile(
   const file =
     input.files[0];
 
+
   if (!file) {
 
-    alert("Choose an audio file first.");
+    alert(
+      "Choose an audio file first."
+    );
 
     return;
 
   }
 
 
-  const {
-    data: {
-      user
-    }
-  } =
-    await supabase.auth.getUser();
+  const user =
+    await getCurrentUser();
 
 
   if (!user) {
 
-    alert("You are not logged in.");
+    alert(
+      "You are not logged in."
+    );
 
     return;
 
@@ -326,8 +490,12 @@ async function uploadFile(
     "...";
 
 
+  // ------------------------------------------------
+  // UPLOAD TO STORAGE
+  // ------------------------------------------------
+
   const {
-    error
+    error: uploadError
   } =
     await supabase.storage
       .from("soundboard")
@@ -337,47 +505,84 @@ async function uploadFile(
       );
 
 
-  if (error) {
+  if (uploadError) {
 
-    console.error(error);
+    console.error(uploadError);
 
     status.textContent =
       "🔴 Upload failed:\n" +
-      error.message;
+      uploadError.message;
 
     return;
 
   }
 
 
+  // ------------------------------------------------
+  // SAVE LIBRARY RECORD
+  // ------------------------------------------------
+
   const {
-    data
+    data: libraryItem,
+    error: dbError
   } =
-    supabase.storage
+    await supabase
+      .from("soundboard_files")
+      .insert({
+
+        user_id: user.id,
+
+        name: file.name,
+
+        path: path,
+
+        type: type
+
+      })
+      .select()
+      .single();
+
+
+  if (dbError) {
+
+    console.error(dbError);
+
+
+    // Remove uploaded file if database insert fails
+
+    await supabase.storage
       .from("soundboard")
-      .getPublicUrl(path);
+      .remove([
+        path
+      ]);
 
 
-  const item = {
+    status.textContent =
+      "🔴 Could not save library item:\n" +
+      dbError.message;
 
-    name: file.name,
+    return;
 
-    path: path,
+  }
 
-    url: data.publicUrl
 
-  };
-
+  // ------------------------------------------------
+  // ADD TO LOCAL LIBRARY
+  // ------------------------------------------------
 
   if (type === "sound") {
 
-    uploadedSounds.push(item);
+    uploadedSounds.push(
+      libraryItem
+    );
 
     renderSounds();
 
   } else {
 
-    uploadedMusic.push(item);
+    uploadedMusic.push(
+      libraryItem
+    );
 
     renderMusic();
 
@@ -386,9 +591,54 @@ async function uploadFile(
 
   input.value = "";
 
+
   status.textContent =
     "🟢 Uploaded " +
     file.name;
+
+}
+
+
+// --------------------------------------------------
+// CREATE SIGNED URL
+// --------------------------------------------------
+
+async function getSignedUrl(path) {
+
+  /*
+   * The Storage bucket is PRIVATE.
+   *
+   * This creates a temporary URL that
+   * can be sent to the unauthenticated
+   * player.
+   */
+
+  const {
+    data,
+    error
+  } =
+    await supabase.storage
+      .from("soundboard")
+      .createSignedUrl(
+        path,
+        60 * 10
+      );
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Could not access audio:\n" +
+      error.message;
+
+    return null;
+
+  }
+
+
+  return data.signedUrl;
 
 }
 
@@ -399,25 +649,70 @@ async function uploadFile(
 
 async function playSound(sound) {
 
-  if (!channel) return;
+  if (!channel) {
 
-  await channel.send({
+    alert(
+      "No active player session."
+    );
 
-    type: "broadcast",
+    return;
 
-    event: "play-sound",
+  }
 
-    payload: {
 
-      source: "supabase",
+  status.textContent =
+    "Preparing " +
+    sound.name +
+    "...";
 
-      file: sound.name,
 
-      url: sound.url
+  const url =
+    await getSignedUrl(
+      sound.path
+    );
 
-    }
 
-  });
+  if (!url) return;
+
+
+  const {
+    error
+  } =
+    await channel.send({
+
+      type: "broadcast",
+
+      event: "play-sound",
+
+      payload: {
+
+        source: "supabase",
+
+        file: sound.name,
+
+        url: url
+
+      }
+
+    });
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Failed to send sound:\n" +
+      error.message;
+
+    return;
+
+  }
+
+
+  status.textContent =
+    "▶ Playing " +
+    sound.name;
 
 }
 
@@ -428,25 +723,196 @@ async function playSound(sound) {
 
 async function playMusic(song) {
 
-  if (!channel) return;
+  if (!channel) {
 
-  await channel.send({
+    alert(
+      "No active player session."
+    );
 
-    type: "broadcast",
+    return;
 
-    event: "play-music",
+  }
 
-    payload: {
 
-      source: "supabase",
+  status.textContent =
+    "Preparing " +
+    song.name +
+    "...";
 
-      file: song.name,
 
-      url: song.url
+  const url =
+    await getSignedUrl(
+      song.path
+    );
 
-    }
 
-  });
+  if (!url) return;
+
+
+  const {
+    error
+  } =
+    await channel.send({
+
+      type: "broadcast",
+
+      event: "play-music",
+
+      payload: {
+
+        source: "supabase",
+
+        file: song.name,
+
+        url: url
+
+      }
+
+    });
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Failed to send music:\n" +
+      error.message;
+
+    return;
+
+  }
+
+
+  status.textContent =
+    "▶ Playing " +
+    song.name;
+
+}
+
+
+// --------------------------------------------------
+// DELETE FILE
+// --------------------------------------------------
+
+async function deleteFile(item) {
+
+  const confirmed =
+    confirm(
+      'Delete "' +
+      item.name +
+      '"?'
+    );
+
+
+  if (!confirmed) return;
+
+
+  const user =
+    await getCurrentUser();
+
+
+  if (!user) {
+
+    alert(
+      "You are not logged in."
+    );
+
+    return;
+
+  }
+
+
+  status.textContent =
+    "Deleting " +
+    item.name +
+    "...";
+
+
+  // ------------------------------------------------
+  // DELETE STORAGE FILE
+  // ------------------------------------------------
+
+  const {
+    error: storageError
+  } =
+    await supabase.storage
+      .from("soundboard")
+      .remove([
+        item.path
+      ]);
+
+
+  if (storageError) {
+
+    console.error(storageError);
+
+    status.textContent =
+      "🔴 Could not delete file:\n" +
+      storageError.message;
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // DELETE DATABASE RECORD
+  // ------------------------------------------------
+
+  const {
+    error: dbError
+  } =
+    await supabase
+      .from("soundboard_files")
+      .delete()
+      .eq("id", item.id)
+      .eq("user_id", user.id);
+
+
+  if (dbError) {
+
+    console.error(dbError);
+
+    status.textContent =
+      "🔴 File deleted but database cleanup failed:\n" +
+      dbError.message;
+
+    await loadLibrary();
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // REMOVE FROM LOCAL ARRAYS
+  // ------------------------------------------------
+
+  if (item.type === "sound") {
+
+    uploadedSounds =
+      uploadedSounds.filter(
+        sound => sound.id !== item.id
+      );
+
+    renderSounds();
+
+  } else {
+
+    uploadedMusic =
+      uploadedMusic.filter(
+        song => song.id !== item.id
+      );
+
+    renderMusic();
+
+  }
+
+
+  status.textContent =
+    "🟢 Deleted " +
+    item.name;
 
 }
 
@@ -459,38 +925,73 @@ function renderSounds() {
 
   sounds.innerHTML = "";
 
-  uploadedSounds.forEach(sound => {
 
-    const row =
+  if (uploadedSounds.length === 0) {
+
+    const empty =
       document.createElement("div");
 
-    row.className = "file";
+    empty.className =
+      "empty";
+
+    empty.textContent =
+      "No saved sounds yet.";
+
+    sounds.appendChild(empty);
+
+    return;
+
+  }
 
 
-    const name =
-      document.createElement("span");
+  uploadedSounds.forEach(
+    sound => {
 
-    name.textContent =
-      sound.name;
+      const row =
+        document.createElement("div");
 
-
-    const button =
-      document.createElement("button");
-
-    button.textContent =
-      "▶ Play";
-
-    button.onclick =
-      () => playSound(sound);
+      row.className =
+        "file";
 
 
-    row.appendChild(name);
+      const name =
+        document.createElement("span");
 
-    row.appendChild(button);
+      name.textContent =
+        sound.name;
 
-    sounds.appendChild(row);
 
-  });
+      const playButton =
+        document.createElement("button");
+
+      playButton.textContent =
+        "▶ Play";
+
+      playButton.onclick =
+        () => playSound(sound);
+
+
+      const deleteButton =
+        document.createElement("button");
+
+      deleteButton.textContent =
+        "🗑 Delete";
+
+      deleteButton.onclick =
+        () => deleteFile(sound);
+
+
+      row.appendChild(name);
+
+      row.appendChild(playButton);
+
+      row.appendChild(deleteButton);
+
+
+      sounds.appendChild(row);
+
+    }
+  );
 
 }
 
@@ -503,38 +1004,98 @@ function renderMusic() {
 
   music.innerHTML = "";
 
-  uploadedMusic.forEach(song => {
 
-    const row =
+  if (uploadedMusic.length === 0) {
+
+    const empty =
       document.createElement("div");
 
-    row.className = "file";
+    empty.className =
+      "empty";
+
+    empty.textContent =
+      "No saved music yet.";
+
+    music.appendChild(empty);
+
+    return;
+
+  }
 
 
-    const name =
-      document.createElement("span");
+  uploadedMusic.forEach(
+    song => {
 
-    name.textContent =
-      song.name;
+      const row =
+        document.createElement("div");
 
-
-    const button =
-      document.createElement("button");
-
-    button.textContent =
-      "▶ Play";
-
-    button.onclick =
-      () => playMusic(song);
+      row.className =
+        "file";
 
 
-    row.appendChild(name);
+      const name =
+        document.createElement("span");
 
-    row.appendChild(button);
+      name.textContent =
+        song.name;
 
-    music.appendChild(row);
 
-  });
+      const playButton =
+        document.createElement("button");
+
+      playButton.textContent =
+        "▶ Play";
+
+      playButton.onclick =
+        () => playMusic(song);
+
+
+      const deleteButton =
+        document.createElement("button");
+
+      deleteButton.textContent =
+        "🗑 Delete";
+
+      deleteButton.onclick =
+        () => deleteFile(song);
+
+
+      row.appendChild(name);
+
+      row.appendChild(playButton);
+
+      row.appendChild(deleteButton);
+
+
+      music.appendChild(row);
+
+    }
+  );
+
+}
+
+
+// --------------------------------------------------
+// SHOW HOST
+// --------------------------------------------------
+
+async function showHost(user) {
+
+  login.style.display =
+    "none";
+
+  host.style.display =
+    "block";
+
+
+  userInfo.textContent =
+    "Logged in as: " +
+    user.email;
+
+
+  await loadLibrary();
+
+  await createSession();
 
 }
 
@@ -549,12 +1110,15 @@ document
   async () => {
 
     const email =
-      document.getElementById("email")
+      document
+        .getElementById("email")
         .value
         .trim();
 
+
     const password =
-      document.getElementById("password")
+      document
+        .getElementById("password")
         .value;
 
 
@@ -563,12 +1127,14 @@ document
 
 
     const {
+      data,
       error
     } =
       await supabase.auth
         .signInWithPassword({
 
           email,
+
           password
 
         });
@@ -584,16 +1150,15 @@ document
     }
 
 
-    login.style.display =
-      "none";
-
-    host.style.display =
-      "block";
+    loginMessage.textContent =
+      "";
 
 
-    await createSession();
+    await showHost(
+      data.user
+    );
 
-  };
+};
 
 
 // --------------------------------------------------
@@ -607,7 +1172,7 @@ document
 
 
 // --------------------------------------------------
-// UPLOAD BUTTONS
+// UPLOAD SOUND
 // --------------------------------------------------
 
 document
@@ -615,17 +1180,25 @@ document
   .onclick =
   () =>
     uploadFile(
-      document.getElementById("soundUpload"),
+      document.getElementById(
+        "soundUpload"
+      ),
       "sound"
     );
 
+
+// --------------------------------------------------
+// UPLOAD MUSIC
+// --------------------------------------------------
 
 document
   .getElementById("uploadMusic")
   .onclick =
   () =>
     uploadFile(
-      document.getElementById("musicUpload"),
+      document.getElementById(
+        "musicUpload"
+      ),
       "music"
     );
 
@@ -649,7 +1222,19 @@ document
 
     }
 
+
     await supabase.auth.signOut();
+
+
+    uploadedSounds = [];
+
+    uploadedMusic = [];
+
+
+    renderSounds();
+
+    renderMusic();
+
 
     host.style.display =
       "none";
@@ -657,8 +1242,18 @@ document
     login.style.display =
       "block";
 
+
     codeElement.textContent =
       "--------";
+
+
+    userInfo.textContent =
+      "";
+
+
+    loginMessage.textContent =
+      "";
+
 
     status.textContent =
       "Please log in.";
@@ -678,13 +1273,9 @@ const {
 
 if (data.session) {
 
-  login.style.display =
-    "none";
-
-  host.style.display =
-    "block";
-
-  await createSession();
+  await showHost(
+    data.session.user
+  );
 
 } else {
 
