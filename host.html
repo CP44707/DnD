@@ -131,6 +131,11 @@
       color: white;
     }
 
+    #loginMessage {
+      color: #ff7777;
+      white-space: pre-wrap;
+    }
+
     @media (max-width: 700px) {
       #columns {
         grid-template-columns: 1fr;
@@ -143,7 +148,7 @@
 
   <h1>🎲 Host Soundboard</h1>
 
-  <p id="status">Please log in.</p>
+  <p id="status">Loading...</p>
 
 
   <!-- LOGIN -->
@@ -244,22 +249,6 @@
 
 
     // --------------------------------------------------
-    // SUPABASE
-    // --------------------------------------------------
-
-    const keys =
-      await fetch("keys.json")
-        .then(r => r.json());
-
-
-    const supabase =
-      createClient(
-        keys.supabaseUrl,
-        keys.supabaseKey
-      );
-
-
-    // --------------------------------------------------
     // ELEMENTS
     // --------------------------------------------------
 
@@ -293,10 +282,15 @@
     const musicContainer =
       document.getElementById("music");
 
+    const loginMessage =
+      document.getElementById("loginMessage");
+
 
     // --------------------------------------------------
     // STATE
     // --------------------------------------------------
+
+    let supabase = null;
 
     let channel = null;
 
@@ -306,7 +300,7 @@
 
 
     // --------------------------------------------------
-    // NAME FORMAT
+    // FORMAT FILE NAME
     // --------------------------------------------------
 
     function displayName(file) {
@@ -322,7 +316,8 @@
         )
         .replace(
           /\b\w/g,
-          letter => letter.toUpperCase()
+          letter =>
+            letter.toUpperCase()
         );
 
     }
@@ -357,11 +352,123 @@
 
 
     // --------------------------------------------------
+    // ENABLE CONTROLS
+    // --------------------------------------------------
+
+    function enableControls() {
+
+      document
+        .querySelectorAll(
+          ".sound-button, .music-button"
+        )
+        .forEach(button => {
+
+          button.disabled = false;
+
+        });
+
+    }
+
+
+    // --------------------------------------------------
+    // DISABLE CONTROLS
+    // --------------------------------------------------
+
+    function disableControls() {
+
+      document
+        .querySelectorAll(
+          ".sound-button, .music-button"
+        )
+        .forEach(button => {
+
+          button.disabled = true;
+
+        });
+
+    }
+
+
+    // --------------------------------------------------
+    // INITIALIZE SUPABASE
+    // --------------------------------------------------
+
+    async function initializeSupabase() {
+
+      try {
+
+        const response =
+          await fetch("keys.json");
+
+
+        if (!response.ok) {
+
+          throw new Error(
+            "Could not load keys.json"
+          );
+
+        }
+
+
+        const keys =
+          await response.json();
+
+
+        if (
+          !keys.supabaseUrl ||
+          !keys.supabaseKey
+        ) {
+
+          throw new Error(
+            "keys.json is missing supabaseUrl or supabaseKey."
+          );
+
+        }
+
+
+        supabase =
+          createClient(
+            keys.supabaseUrl,
+            keys.supabaseKey
+          );
+
+
+        status.textContent =
+          "Please log in.";
+
+
+        checkExistingLogin();
+
+      } catch (error) {
+
+        console.error(error);
+
+
+        status.textContent =
+          "🔴 Could not initialize Supabase.\n\n" +
+          error.message;
+
+      }
+
+    }
+
+
+    // --------------------------------------------------
     // LOGIN
     // --------------------------------------------------
 
     loginButton.onclick =
       async () => {
+
+        if (!supabase) {
+
+          loginMessage.textContent =
+            "Supabase is not ready yet.";
+
+          return;
+
+        }
+
 
         const email =
           document
@@ -377,9 +484,7 @@
 
         if (!email || !password) {
 
-          document
-            .getElementById("loginMessage")
-            .textContent =
+          loginMessage.textContent =
             "Enter your email and password.";
 
           return;
@@ -389,47 +494,97 @@
 
         loginButton.disabled = true;
 
-        document
-          .getElementById("loginMessage")
-          .textContent =
+
+        loginMessage.textContent =
           "Logging in...";
 
 
-        const {
-          data,
-          error
-        } =
-          await supabase.auth
-            .signInWithPassword({
-              email,
-              password
-            });
+        try {
+
+          const {
+            error
+          } =
+            await supabase.auth
+              .signInWithPassword({
+
+                email,
+                password
+
+              });
 
 
-        loginButton.disabled = false;
+          if (error) {
+
+            loginMessage.textContent =
+              "Login failed: " +
+              error.message;
+
+            loginButton.disabled =
+              false;
+
+            return;
+
+          }
 
 
-        if (error) {
+          loginMessage.textContent =
+            "";
 
-          document
-            .getElementById("loginMessage")
-            .textContent =
-            "Login failed: " +
+
+          await showHost();
+
+
+        } catch (error) {
+
+          console.error(error);
+
+
+          loginMessage.textContent =
+            "Login failed:\n" +
             error.message;
-
-          return;
 
         }
 
 
-        document
-          .getElementById("loginMessage")
-          .textContent = "";
-
-
-        showHost();
+        loginButton.disabled = false;
 
       };
+
+
+    // --------------------------------------------------
+    // CHECK EXISTING LOGIN
+    // --------------------------------------------------
+
+    async function checkExistingLogin() {
+
+      try {
+
+        const {
+          data
+        } =
+          await supabase.auth
+            .getSession();
+
+
+        if (
+          data &&
+          data.session
+        ) {
+
+          await showHost();
+
+        }
+
+      } catch (error) {
+
+        console.error(
+          "Session check failed:",
+          error
+        );
+
+      }
+
+    }
 
 
     // --------------------------------------------------
@@ -446,12 +601,49 @@
 
 
       status.textContent =
-        "🟡 Creating session...";
+        "🟡 Loading soundboard...";
 
 
-      await loadSounds();
+      disableControls();
 
-      await loadMusic();
+
+      try {
+
+        await loadSounds();
+
+      } catch (error) {
+
+        console.error(
+          "Could not load sounds:",
+          error
+        );
+
+        status.textContent =
+          "🔴 Could not load sounds.json.";
+
+        return;
+
+      }
+
+
+      try {
+
+        await loadMusic();
+
+      } catch (error) {
+
+        console.error(
+          "Could not load music:",
+          error
+        );
+
+        status.textContent =
+          "🔴 Could not load music.json.";
+
+        return;
+
+      }
+
 
       await createSession();
 
@@ -464,18 +656,36 @@
 
     async function createSession() {
 
+      newCodeButton.disabled = true;
+
+      copyCodeButton.disabled = true;
+
+      disableControls();
+
+
+      connected = false;
+
+
       if (channel) {
 
-        await supabase.removeChannel(
-          channel
-        );
+        try {
+
+          await supabase
+            .removeChannel(channel);
+
+        } catch (error) {
+
+          console.warn(
+            "Could not remove old channel:",
+            error
+          );
+
+        }
+
 
         channel = null;
 
       }
-
-
-      connected = false;
 
 
       sessionCodeValue =
@@ -486,20 +696,21 @@
         sessionCodeValue;
 
 
-      /*
-        IMPORTANT:
+      status.textContent =
+        "🟡 Connecting...";
 
-        We are intentionally NOT storing
-        the session in a Supabase table.
-
-        The random code simply determines
-        the Realtime channel.
-      */
 
       channel =
         supabase.channel(
           "soundboard-" +
-          sessionCodeValue
+          sessionCodeValue,
+          {
+            config: {
+              broadcast: {
+                self: false
+              }
+            }
+          }
         );
 
 
@@ -507,7 +718,7 @@
         (state, error) => {
 
           console.log(
-            "Host:",
+            "Host channel state:",
             state,
             error
           );
@@ -525,6 +736,19 @@
               "Session code: " +
               sessionCodeValue;
 
+
+            enableControls();
+
+
+            newCodeButton.disabled =
+              false;
+
+            copyCodeButton.disabled =
+              false;
+
+
+            return;
+
           }
 
 
@@ -534,8 +758,176 @@
 
             connected = false;
 
+
+            disableControls();
+
+
             status.textContent =
-              "🔴 Connection error.";
+              "🔴 Realtime channel error.\n\n" +
+              "Check the browser console for details.";
+
+
+            newCodeButton.disabled =
+              false;
+
+
+            console.error(
+              "Supabase channel error:",
+              error
+            );
+
+
+            return;
+
+          }
+
+
+          if (
+            state === "TIMED_OUT"
+          ) {
+
+            connected = false;
+
+
+            disableControls();
+
+
+            status.textContent =
+              "🔴 Connection timed out.\n\n" +
+              "Trying again...";
+
+
+            reconnectCurrentSession();
+
+
+            return;
+
+          }
+
+
+          if (
+            state === "CLOSED"
+          ) {
+
+            connected = false;
+
+
+            disableControls();
+
+          }
+
+        }
+      );
+
+    }
+
+
+    // --------------------------------------------------
+    // RECONNECT
+    // --------------------------------------------------
+
+    async function reconnectCurrentSession() {
+
+      if (!sessionCodeValue)
+        return;
+
+
+      if (!supabase)
+        return;
+
+
+      if (channel) {
+
+        try {
+
+          await supabase
+            .removeChannel(channel);
+
+        } catch (error) {
+
+          console.warn(error);
+
+        }
+
+
+        channel = null;
+
+      }
+
+
+      await new Promise(
+        resolve =>
+          setTimeout(
+            resolve,
+            1000
+          )
+      );
+
+
+      connected = false;
+
+
+      channel =
+        supabase.channel(
+          "soundboard-" +
+          sessionCodeValue,
+          {
+            config: {
+              broadcast: {
+                self: false
+              }
+            }
+          }
+        );
+
+
+      channel.subscribe(
+        (state, error) => {
+
+          console.log(
+            "Host reconnect:",
+            state,
+            error
+          );
+
+
+          if (
+            state === "SUBSCRIBED"
+          ) {
+
+            connected = true;
+
+
+            status.textContent =
+              "🟢 Connected\n" +
+              "Session code: " +
+              sessionCodeValue;
+
+
+            enableControls();
+
+
+            newCodeButton.disabled =
+              false;
+
+            copyCodeButton.disabled =
+              false;
+
+          }
+
+
+          if (
+            state === "CHANNEL_ERROR"
+          ) {
+
+            connected = false;
+
+
+            disableControls();
+
+
+            status.textContent =
+              "🔴 Realtime channel error.";
 
             console.error(error);
 
@@ -548,8 +940,13 @@
 
             connected = false;
 
+
+            disableControls();
+
+
             status.textContent =
-              "🔴 Connection timed out.";
+              "🔴 Connection timed out.\n" +
+              "Click New Code to try again.";
 
           }
 
@@ -570,23 +967,38 @@
           return;
 
 
-        await navigator
-          .clipboard
-          .writeText(
+        try {
+
+          await navigator
+            .clipboard
+            .writeText(
+              sessionCodeValue
+            );
+
+
+          copyCodeButton.textContent =
+            "✅ Copied!";
+
+
+          setTimeout(() => {
+
+            copyCodeButton.textContent =
+              "📋 Copy Code";
+
+          }, 1500);
+
+
+        } catch (error) {
+
+          console.error(error);
+
+
+          alert(
+            "Your session code is:\n\n" +
             sessionCodeValue
           );
 
-
-        copyCodeButton.textContent =
-          "✅ Copied!";
-
-
-        setTimeout(() => {
-
-          copyCodeButton.textContent =
-            "📋 Copy Code";
-
-        }, 1500);
+        }
 
       };
 
@@ -598,15 +1010,11 @@
     newCodeButton.onclick =
       async () => {
 
-        newCodeButton.disabled =
-          true;
+        if (!supabase)
+          return;
 
 
         await createSession();
-
-
-        newCodeButton.disabled =
-          false;
 
       };
 
@@ -622,26 +1030,55 @@
         !channel
       ) {
 
+        console.warn(
+          "Cannot play sound: not connected."
+        );
+
         return;
 
       }
 
 
-      await channel.send({
+      console.log(
+        "Sending sound:",
+        file
+      );
 
-        type: "broadcast",
 
-        event: "play-sound",
+      try {
 
-        payload: {
+        const result =
+          await channel.send({
 
-          source: "github",
+            type: "broadcast",
 
-          file: file
+            event: "play-sound",
 
-        }
+            payload: {
 
-      });
+              source: "github",
+
+              file: file
+
+            }
+
+          });
+
+
+        console.log(
+          "Sound result:",
+          result
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          "Sound send failed:",
+          error
+        );
+
+      }
 
     }
 
@@ -657,26 +1094,55 @@
         !channel
       ) {
 
+        console.warn(
+          "Cannot play music: not connected."
+        );
+
         return;
 
       }
 
 
-      await channel.send({
+      console.log(
+        "Sending music:",
+        file
+      );
 
-        type: "broadcast",
 
-        event: "play-music",
+      try {
 
-        payload: {
+        const result =
+          await channel.send({
 
-          source: "github",
+            type: "broadcast",
 
-          file: file
+            event: "play-music",
 
-        }
+            payload: {
 
-      });
+              source: "github",
+
+              file: file
+
+            }
+
+          });
+
+
+        console.log(
+          "Music result:",
+          result
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          "Music send failed:",
+          error
+        );
+
+      }
 
     }
 
@@ -697,15 +1163,26 @@
       }
 
 
-      await channel.send({
+      try {
 
-        type: "broadcast",
+        await channel.send({
 
-        event: "pause-music",
+          type: "broadcast",
 
-        payload: {}
+          event: "pause-music",
 
-      });
+          payload: {}
+
+        });
+
+      } catch (error) {
+
+        console.error(
+          "Pause failed:",
+          error
+        );
+
+      }
 
     }
 
@@ -729,23 +1206,34 @@
       }
 
 
-      await channel.send({
+      try {
 
-        type: "broadcast",
+        await channel.send({
 
-        event: "repeat-music",
+          type: "broadcast",
 
-        payload: {
+          event: "repeat-music",
 
-          source: "github",
+          payload: {
 
-          file: file,
+            source: "github",
 
-          repeat: repeat
+            file: file,
 
-        }
+            repeat: repeat
 
-      });
+          }
+
+        });
+
+      } catch (error) {
+
+        console.error(
+          "Repeat command failed:",
+          error
+        );
+
+      }
 
     }
 
@@ -760,9 +1248,35 @@
         "";
 
 
+      const response =
+        await fetch(
+          "sounds.json",
+          {
+            cache: "no-cache"
+          }
+        );
+
+
+      if (!response.ok) {
+
+        throw new Error(
+          "Could not load sounds.json"
+        );
+
+      }
+
+
       const files =
-        await fetch("sounds.json")
-          .then(r => r.json());
+        await response.json();
+
+
+      if (!Array.isArray(files)) {
+
+        throw new Error(
+          "sounds.json must contain an array."
+        );
+
+      }
 
 
       files.forEach(file => {
@@ -782,7 +1296,7 @@
 
 
         button.disabled =
-          true;
+          !connected;
 
 
         button.onclick =
@@ -812,9 +1326,35 @@
         "";
 
 
+      const response =
+        await fetch(
+          "music.json",
+          {
+            cache: "no-cache"
+          }
+        );
+
+
+      if (!response.ok) {
+
+        throw new Error(
+          "Could not load music.json"
+        );
+
+      }
+
+
       const files =
-        await fetch("music.json")
-          .then(r => r.json());
+        await response.json();
+
+
+      if (!Array.isArray(files)) {
+
+        throw new Error(
+          "music.json must contain an array."
+        );
+
+      }
 
 
       files.forEach(file => {
@@ -829,21 +1369,19 @@
           "music-item";
 
 
-        const name =
+        const nameElement =
           document.createElement(
             "div"
           );
 
 
-        name.className =
+        nameElement.className =
           "music-name";
 
 
-        name.textContent =
+        nameElement.textContent =
           displayName(file);
 
-
-        // PLAY
 
         const playButton =
           document.createElement(
@@ -860,7 +1398,7 @@
 
 
         playButton.disabled =
-          true;
+          !connected;
 
 
         playButton.onclick =
@@ -870,8 +1408,6 @@
 
           };
 
-
-        // PAUSE
 
         const pauseButton =
           document.createElement(
@@ -888,7 +1424,7 @@
 
 
         pauseButton.disabled =
-          true;
+          !connected;
 
 
         pauseButton.onclick =
@@ -898,8 +1434,6 @@
 
           };
 
-
-        // REPEAT
 
         const repeatButton =
           document.createElement(
@@ -916,7 +1450,7 @@
 
 
         repeatButton.disabled =
-          true;
+          !connected;
 
 
         let repeating = false;
@@ -943,13 +1477,24 @@
           };
 
 
-        item.appendChild(name);
+        item.appendChild(
+          nameElement
+        );
 
-        item.appendChild(playButton);
 
-        item.appendChild(pauseButton);
+        item.appendChild(
+          playButton
+        );
 
-        item.appendChild(repeatButton);
+
+        item.appendChild(
+          pauseButton
+        );
+
+
+        item.appendChild(
+          repeatButton
+        );
 
 
         musicContainer.appendChild(
@@ -962,43 +1507,36 @@
 
 
     // --------------------------------------------------
-    // ENABLE CONTROLS
-    // --------------------------------------------------
-
-    function enableControls() {
-
-      document
-        .querySelectorAll(
-          "#hostPanel button"
-        )
-        .forEach(button => {
-
-          button.disabled = false;
-
-        });
-
-    }
-
-
-    // --------------------------------------------------
     // LOGOUT
     // --------------------------------------------------
 
     logoutButton.onclick =
       async () => {
 
-        if (channel) {
+        try {
 
-          await supabase
-            .removeChannel(channel);
+          if (channel) {
 
-          channel = null;
+            await supabase
+              .removeChannel(channel);
+
+            channel = null;
+
+          }
+
+
+          await supabase.auth
+            .signOut();
+
+
+        } catch (error) {
+
+          console.error(
+            "Logout error:",
+            error
+          );
 
         }
-
-
-        await supabase.auth
-          .signOut();
 
 
         connected = false;
@@ -1006,8 +1544,12 @@
         sessionCodeValue = null;
 
 
+        disableControls();
+
+
         hostPanel.style.display =
           "none";
+
 
         loginPanel.style.display =
           "block";
@@ -1020,37 +1562,18 @@
         status.textContent =
           "Please log in.";
 
+
+        loginMessage.textContent =
+          "";
+
       };
 
 
     // --------------------------------------------------
-    // CHECK EXISTING LOGIN
+    // START
     // --------------------------------------------------
 
-    const {
-      data: {
-        session
-      }
-    } =
-      await supabase.auth
-        .getSession();
-
-
-    if (session) {
-
-      showHost();
-
-    }
-
-
-    // --------------------------------------------------
-    // ENABLE BUTTONS
-    // --------------------------------------------------
-
-    // setTimeout(
-    //   enableControls,
-    //   500
-    // );
+    initializeSupabase();
 
   </script>
 
