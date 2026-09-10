@@ -157,7 +157,12 @@
     </button>
 
   </div>
+  <div class="box">
+    <button id="preloadAudio">
+  ⚡ Preload All Audio
+  </button>
 
+  </div>
 
   <div class="box">
 
@@ -446,6 +451,56 @@ async function createSession() {
   );
 
 }
+// preload button
+async function preloadAllAudio() {
+
+  if (!channel) {
+
+    alert(
+      "No active player session."
+    );
+
+    return;
+
+  }
+
+
+  status.textContent =
+    "⚡ Preloading audio on players...";
+
+
+  const {
+    error
+  } =
+    await channel.send({
+
+      type: "broadcast",
+
+      event: "preload-audio",
+
+      payload: {}
+
+    });
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Failed to start audio preload:\n" +
+      error.message;
+
+    return;
+
+  }
+
+
+  status.textContent =
+    "🟢 Preload command sent to players.";
+
+}
+
 
 
 // --------------------------------------------------

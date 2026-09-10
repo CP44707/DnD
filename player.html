@@ -157,6 +157,9 @@ let currentMusicUrl = null;
 
 let repeatMusic = false;
 
+// Preloaded audio stored as local object URLs.
+let preloadedAudio = new Map();
+
 // Start the next copy this many seconds early.
 const REPEAT_OVERLAP = 0.25;
 
@@ -185,7 +188,10 @@ enableAudio.onclick =
 // PLAY URL
 // --------------------------------------------------
 
-function playUrl(url) {
+function playUrl(
+  url,
+  file = null
+) {
 
   if (!audioEnabled) {
 
@@ -198,7 +204,11 @@ function playUrl(url) {
 
 
   const audio =
-    new Audio(url);
+    new Audio(
+      file && preloadedAudio.has(file)
+        ? preloadedAudio.get(file)
+        : url
+    );
 
 
   audio.play()
@@ -218,19 +228,198 @@ function playUrl(url) {
 
 
 // --------------------------------------------------
+// PRELOAD ALL AUDIO
+// --------------------------------------------------
+
+async function preloadAllAudio() {
+
+  console.log(
+    "PRELOAD AUDIO RECEIVED"
+  );
+
+
+  status.textContent =
+    "⚡ Preloading audio...";
+
+
+  try {
+
+    const [
+      soundsResponse,
+      musicResponse
+    ] =
+      await Promise.all([
+
+        fetch("sounds.json"),
+
+        fetch("music.json")
+
+      ]);
+
+
+    if (
+      !soundsResponse.ok ||
+      !musicResponse.ok
+    ) {
+
+      throw new Error(
+        "Could not load audio file lists."
+      );
+
+    }
+
+
+    const sounds =
+      await soundsResponse.json();
+
+    const music =
+      await musicResponse.json();
+
+
+    const files = [
+
+      ...sounds.map(
+        file => ({
+          file: file,
+          path: "sounds/"
+        })
+      ),
+
+      ...music.map(
+        file => ({
+          file: file,
+          path: "music/"
+        })
+      )
+
+    ];
+
+
+    let loaded =
+      0;
+
+
+    await Promise.all(
+
+      files.map(
+        async item => {
+
+          const url =
+            item.path +
+            encodeURIComponent(
+              item.file
+            );
+
+
+          const response =
+            await fetch(url);
+
+
+          if (!response.ok) {
+
+            throw new Error(
+              "Failed to preload " +
+              item.file
+            );
+
+          }
+
+
+          const blob =
+            await response.blob();
+
+
+          const objectUrl =
+            URL.createObjectURL(
+              blob
+            );
+
+
+          // Replace an existing preload
+          // if one already exists.
+          if (
+            preloadedAudio.has(
+              item.file
+            )
+          ) {
+
+            URL.revokeObjectURL(
+              preloadedAudio.get(
+                item.file
+              )
+            );
+
+          }
+
+
+          preloadedAudio.set(
+            item.file,
+            objectUrl
+          );
+
+
+          loaded++;
+
+
+          status.textContent =
+            "⚡ Preloading audio... " +
+            loaded +
+            "/" +
+            files.length;
+
+        }
+      )
+
+    );
+
+
+    status.textContent =
+      "🟢 Audio preloaded — ready.";
+
+    console.log(
+      "Audio preload complete:",
+      preloadedAudio.size,
+      "files"
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "Audio preload failed:",
+      error
+    );
+
+
+    status.textContent =
+      "🔴 Audio preload failed.";
+
+  }
+
+}
+
+
+// --------------------------------------------------
 // SCHEDULE REPEAT
 // --------------------------------------------------
 
 function scheduleRepeat() {
 
-  clearTimeout(repeatTimer);
+  clearTimeout(
+    repeatTimer
+  );
+
 
   if (!musicAudio) return;
 
   if (!repeatMusic) return;
 
 
-  if (!Number.isFinite(musicAudio.duration)) {
+  if (
+    !Number.isFinite(
+      musicAudio.duration
+    )
+  ) {
 
     musicAudio.addEventListener(
       "loadedmetadata",
@@ -239,8 +428,11 @@ function scheduleRepeat() {
         scheduleRepeat();
 
       },
-      { once: true }
+      {
+        once: true
+      }
     );
+
 
     return;
 
@@ -263,11 +455,14 @@ function scheduleRepeat() {
 
 
   repeatTimer =
-    setTimeout(() => {
+    setTimeout(
+      () => {
 
-      repeatSong();
+        repeatSong();
 
-    }, delay);
+      },
+      delay
+    );
 
 }
 
@@ -282,18 +477,26 @@ function repeatSong() {
 
   if (!repeatMusic) return;
 
-  if (!currentMusicUrl) return;
+  if (!currentMusicFile) return;
 
 
   const oldAudio =
     musicAudio;
 
 
-  // Start another copy of the exact same
-  // Supabase-signed URL.
   const newAudio =
     new Audio(
-      currentMusicUrl
+
+      preloadedAudio.has(
+        currentMusicFile
+      )
+
+        ? preloadedAudio.get(
+            currentMusicFile
+          )
+
+        : currentMusicUrl
+
     );
 
 
@@ -301,7 +504,6 @@ function repeatSong() {
     1;
 
 
-  // Start the new copy.
   newAudio.play()
     .catch(error => {
 
@@ -313,8 +515,8 @@ function repeatSong() {
     });
 
 
-  // Fade the old copy out during the
-  // 0.25 second overlap.
+  // Fade the old copy out during
+  // the 0.25 second overlap.
   const fadeSteps =
     10;
 
@@ -323,36 +525,43 @@ function repeatSong() {
 
 
   const fadeTimer =
-    setInterval(() => {
+    setInterval(
+      () => {
 
-      step++;
+        step++;
 
-
-      oldAudio.volume =
-        Math.max(
-          0,
-          1 - (step / fadeSteps)
-        );
-
-
-      if (step >= fadeSteps) {
-
-        clearInterval(
-          fadeTimer
-        );
-
-
-        oldAudio.pause();
-
-        oldAudio.currentTime =
-          0;
 
         oldAudio.volume =
-          1;
+          Math.max(
+            0,
+            1 -
+              (step / fadeSteps)
+          );
 
-      }
 
-    }, (REPEAT_OVERLAP * 1000) / fadeSteps);
+        if (
+          step >= fadeSteps
+        ) {
+
+          clearInterval(
+            fadeTimer
+          );
+
+
+          oldAudio.pause();
+
+          oldAudio.currentTime =
+            0;
+
+          oldAudio.volume =
+            1;
+
+        }
+
+      },
+      (REPEAT_OVERLAP * 1000) /
+        fadeSteps
+    );
 
 
   musicAudio =
@@ -367,7 +576,9 @@ function repeatSong() {
       scheduleRepeat();
 
     },
-    { once: true }
+    {
+      once: true
+    }
   );
 
 }
@@ -447,7 +658,26 @@ joinButton.onclick =
       );
 
 
+    // ------------------------------------------------
+    // PRELOAD AUDIO
+    // ------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      {
+        event: "preload-audio"
+      },
+      () => {
+
+        preloadAllAudio();
+
+      }
+    );
+
+
+    // ------------------------------------------------
     // SOUND
+    // ------------------------------------------------
 
     channel.on(
       "broadcast",
@@ -459,6 +689,7 @@ joinButton.onclick =
         const payload =
           message.payload;
 
+
         if (
           payload &&
           payload.url
@@ -468,7 +699,11 @@ joinButton.onclick =
             "🔊 Playing: " +
             payload.file;
 
-          playUrl(payload.url);
+
+          playUrl(
+            payload.url,
+            payload.file
+          );
 
         }
 
@@ -476,7 +711,9 @@ joinButton.onclick =
     );
 
 
+    // ------------------------------------------------
     // MUSIC
+    // ------------------------------------------------
 
     channel.on(
       "broadcast",
@@ -487,6 +724,7 @@ joinButton.onclick =
 
         const payload =
           message.payload;
+
 
         if (
           !payload ||
@@ -515,9 +753,21 @@ joinButton.onclick =
         stopMusic();
 
 
+        const audioSource =
+          preloadedAudio.has(
+            payload.file
+          )
+
+            ? preloadedAudio.get(
+                payload.file
+              )
+
+            : payload.url;
+
+
         musicAudio =
           new Audio(
-            payload.url
+            audioSource
           );
 
 
@@ -566,7 +816,9 @@ joinButton.onclick =
           })
           .catch(error => {
 
-            console.error(error);
+            console.error(
+              error
+            );
 
             status.textContent =
               "🔴 Music playback failed.";
@@ -577,7 +829,9 @@ joinButton.onclick =
     );
 
 
+    // ------------------------------------------------
     // MUSIC PAUSE
+    // ------------------------------------------------
 
     channel.on(
       "broadcast",
@@ -612,7 +866,9 @@ joinButton.onclick =
     );
 
 
+    // ------------------------------------------------
     // MUSIC REPEAT
+    // ------------------------------------------------
 
     channel.on(
       "broadcast",
@@ -676,12 +932,16 @@ joinButton.onclick =
     );
 
 
+    // ------------------------------------------------
     // CONNECT
+    // ------------------------------------------------
 
     channel.subscribe(
       state => {
 
-        if (state === "SUBSCRIBED") {
+        if (
+          state === "SUBSCRIBED"
+        ) {
 
           join.style.display =
             "none";
@@ -694,7 +954,9 @@ joinButton.onclick =
 
           status.textContent =
             audioEnabled
+
               ? "🟢 Connected — waiting for sounds."
+
               : "🟢 Connected — click Enable Audio.";
 
         }
@@ -731,14 +993,33 @@ leaveButton.onclick =
 
     stopMusic();
 
+
     currentMusicFile =
       null;
+
 
     currentMusicUrl =
       null;
 
+
     repeatMusic =
       false;
+
+
+    // Release preloaded audio URLs.
+    for (
+      const objectUrl
+      of preloadedAudio.values()
+    ) {
+
+      URL.revokeObjectURL(
+        objectUrl
+      );
+
+    }
+
+
+    preloadedAudio.clear();
 
 
     if (channel) {
