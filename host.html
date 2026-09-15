@@ -1049,6 +1049,75 @@ async function toggleRepeat(
 
 
 // --------------------------------------------------
+// STOP MUSIC
+// --------------------------------------------------
+
+async function stopMusic(song) {
+
+  if (!channel) {
+
+    alert(
+      "No active player session."
+    );
+
+    return;
+
+  }
+
+
+  const {
+    error
+  } =
+  await channel.send({
+
+    type: "broadcast",
+
+    event: "stop-music",
+
+    payload: {
+
+      source: "supabase",
+
+      file: song.name
+
+    }
+
+  });
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Failed to stop music:\n" +
+      error.message;
+
+    return;
+
+  }
+
+
+  if (
+    currentMusicSong &&
+    currentMusicSong.name === song.name
+  ) {
+
+    currentMusicSong = null;
+    repeatMusic = false;
+    updateRepeatButtons();
+
+  }
+
+
+  status.textContent =
+    "⏹ Stopped " +
+    song.name;
+
+}
+
+
+// --------------------------------------------------
 // UPDATE REPEAT BUTTONS
 // --------------------------------------------------
 
@@ -1367,6 +1436,20 @@ function renderMusic() {
 
 
       // ------------------------------------------------
+      // STOP BUTTON
+      // ------------------------------------------------
+
+      const stopButton =
+        document.createElement("button");
+
+      stopButton.textContent =
+        "⏹ Stop";
+
+      stopButton.onclick =
+        () => stopMusic(song);
+
+
+      // ------------------------------------------------
       // REPEAT BUTTON
       // ------------------------------------------------
 
@@ -1409,6 +1492,8 @@ function renderMusic() {
       row.appendChild(name);
 
       row.appendChild(playButton);
+
+      row.appendChild(stopButton);
 
       row.appendChild(repeatButton);
 

@@ -1272,6 +1272,55 @@ joinButton.onclick =
 
 
     // ------------------------------------------------
+    // MUSIC STOP
+    // ------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      {
+        event: "stop-music"
+      },
+      message => {
+
+        const file =
+          message?.payload?.file;
+
+
+        if (
+          file &&
+          currentMusicFile !== file
+        ) {
+
+          return;
+
+        }
+
+
+        console.log(
+          "MUSIC STOP"
+        );
+
+
+        musicGeneration++;
+        stopMusic();
+
+        currentMusicFile =
+          null;
+
+        currentMusicUrl =
+          null;
+
+        repeatMusic =
+          false;
+
+        status.textContent =
+          "⏹ Music stopped";
+
+      }
+    );
+
+
+    // ------------------------------------------------
     // MUSIC REPEAT
     // ------------------------------------------------
 
