@@ -56,6 +56,21 @@
       border: 0;
       background: white;
     }
+
+    .volume-control {
+      margin: 15px 0;
+    }
+
+    .volume-control label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+
+    .volume-control input {
+      width: 100%;
+      box-sizing: border-box;
+    }
   </style>
 </head>
 
@@ -101,6 +116,60 @@
       sandbox="allow-forms allow-popups allow-scripts"
       referrerpolicy="no-referrer"
     ></iframe>
+
+  </div>
+
+  <div class="volume-control">
+
+    <label for="masterVolume">
+      <span>General volume</span>
+      <span id="masterVolumeValue">100%</span>
+    </label>
+
+    <input
+      id="masterVolume"
+      type="range"
+      min="0"
+      max="1"
+      step="0.01"
+      value="1"
+    >
+
+  </div>
+
+  <div class="volume-control">
+
+    <label for="soundVolume">
+      <span>Sound volume</span>
+      <span id="soundVolumeValue">100%</span>
+    </label>
+
+    <input
+      id="soundVolume"
+      type="range"
+      min="0"
+      max="1"
+      step="0.01"
+      value="1"
+    >
+
+  </div>
+
+  <div class="volume-control">
+
+    <label for="musicVolume">
+      <span>Music volume</span>
+      <span id="musicVolumeValue">100%</span>
+    </label>
+
+    <input
+      id="musicVolume"
+      type="range"
+      min="0"
+      max="1"
+      step="0.01"
+      value="1"
+    >
 
   </div>
 
@@ -170,6 +239,24 @@ const embedContainer =
 const embedFrame =
   document.getElementById("embedFrame");
 
+const masterVolume =
+  document.getElementById("masterVolume");
+
+const soundVolume =
+  document.getElementById("soundVolume");
+
+const musicVolume =
+  document.getElementById("musicVolume");
+
+const masterVolumeValue =
+  document.getElementById("masterVolumeValue");
+
+const soundVolumeValue =
+  document.getElementById("soundVolumeValue");
+
+const musicVolumeValue =
+  document.getElementById("musicVolumeValue");
+
 
 // --------------------------------------------------
 // STATE
@@ -186,6 +273,14 @@ let currentMusicFile = null;
 let currentMusicUrl = null;
 
 let repeatMusic = false;
+
+let masterVolumeLevel = 1;
+
+let soundVolumeLevel = 1;
+
+let musicVolumeLevel = 1;
+
+let activeSounds = new Set();
 
 
 // Preloaded audio stored as local object URLs.
@@ -217,6 +312,103 @@ let musicGeneration = 0;
 // Keep track of active fade timers so they
 // can be cancelled when music changes.
 let fadeTimers = new Set();
+
+
+// --------------------------------------------------
+// VOLUME
+// --------------------------------------------------
+
+function getSoundVolume() {
+
+  return masterVolumeLevel * soundVolumeLevel;
+
+}
+
+
+function getMusicVolume() {
+
+  return masterVolumeLevel * musicVolumeLevel;
+
+}
+
+
+function updateVolumeLabels() {
+
+  masterVolumeValue.textContent =
+    Math.round(masterVolumeLevel * 100) +
+    "%";
+
+  soundVolumeValue.textContent =
+    Math.round(soundVolumeLevel * 100) +
+    "%";
+
+  musicVolumeValue.textContent =
+    Math.round(musicVolumeLevel * 100) +
+    "%";
+
+}
+
+
+function applyVolumes() {
+
+  for (
+    const audio
+    of activeSounds
+  ) {
+
+    audio.volume =
+      getSoundVolume();
+
+  }
+
+
+  if (musicAudio) {
+
+    musicAudio.volume =
+      getMusicVolume();
+
+  }
+
+}
+
+
+masterVolume.oninput =
+  () => {
+
+    masterVolumeLevel =
+      Number(masterVolume.value);
+
+    updateVolumeLabels();
+    applyVolumes();
+
+  };
+
+
+soundVolume.oninput =
+  () => {
+
+    soundVolumeLevel =
+      Number(soundVolume.value);
+
+    updateVolumeLabels();
+    applyVolumes();
+
+  };
+
+
+musicVolume.oninput =
+  () => {
+
+    musicVolumeLevel =
+      Number(musicVolume.value);
+
+    updateVolumeLabels();
+    applyVolumes();
+
+  };
+
+
+updateVolumeLabels();
 
 
 // --------------------------------------------------
@@ -289,6 +481,28 @@ function playUrl(
         ? preloadedAudio.get(file)
         : url
     );
+
+
+  audio.volume =
+    getSoundVolume();
+
+  activeSounds.add(audio);
+
+  audio.addEventListener(
+    "ended",
+    () => activeSounds.delete(audio),
+    {
+      once: true
+    }
+  );
+
+  audio.addEventListener(
+    "error",
+    () => activeSounds.delete(audio),
+    {
+      once: true
+    }
+  );
 
 
   audio.play()
@@ -721,7 +935,7 @@ function repeatSong(
 
 
   newAudio.volume =
-    1;
+    getMusicVolume();
 
 
   newAudio.loop =
@@ -805,6 +1019,7 @@ function repeatSong(
 
 
         oldAudio.volume =
+          getMusicVolume() *
           Math.max(
             0,
             1 -
@@ -847,7 +1062,7 @@ function repeatSong(
 
 
           oldAudio.volume =
-            1;
+            getMusicVolume();
 
         }
 
@@ -948,7 +1163,7 @@ function stopMusic() {
 
 
     musicAudio.volume =
-      1;
+      getMusicVolume();
 
   }
 
@@ -1006,7 +1221,7 @@ async function startMusic(
 
 
   audio.volume =
-    1;
+    getMusicVolume();
 
 
   musicAudio =
