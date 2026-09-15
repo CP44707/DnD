@@ -157,13 +157,36 @@ let currentMusicUrl = null;
 
 let repeatMusic = false;
 
+
 // Preloaded audio stored as local object URLs.
 let preloadedAudio = new Map();
 
-// Start the next copy this many seconds early.
+
+// --------------------------------------------------
+// REPEAT SETTINGS
+// --------------------------------------------------
+
+// Start the next copy this many seconds
+// before the current copy ends.
 const REPEAT_OVERLAP = 0.25;
 
+
+// Timer used to start the next copy.
 let repeatTimer = null;
+
+
+// Every time the active song changes,
+// this number increases.
+//
+// This prevents an old repeat timer,
+// metadata event, or fade operation from
+// affecting a newer song.
+let musicGeneration = 0;
+
+
+// Keep track of active fade timers so they
+// can be cancelled when music changes.
+let fadeTimers = new Set();
 
 
 // --------------------------------------------------
@@ -171,7 +194,7 @@ let repeatTimer = null;
 // --------------------------------------------------
 
 enableAudio.onclick =
-  () => {
+  async () => {
 
     audioEnabled = true;
 
@@ -180,6 +203,33 @@ enableAudio.onclick =
 
     status.textContent =
       "🟢 Connected — waiting for sounds.";
+
+    // If music was received while audio
+    // was disabled, try starting it now.
+    if (
+      musicAudio &&
+      musicAudio.paused
+    ) {
+
+      try {
+
+        await musicAudio.play();
+
+        scheduleRepeat();
+
+      } catch (error) {
+
+        console.error(
+          "Audio enable playback failed:",
+          error
+        );
+
+        status.textContent =
+          "🔴 Audio playback failed.";
+
+      }
+
+    }
 
   };
 
@@ -248,13 +298,13 @@ async function preloadAllAudio() {
       soundsResponse,
       musicResponse
     ] =
-      await Promise.all([
+    await Promise.all([
 
-        fetch("sounds.json"),
+      fetch("sounds.json"),
 
-        fetch("music.json")
+      fetch("music.json")
 
-      ]);
+    ]);
 
 
     if (
@@ -376,6 +426,7 @@ async function preloadAllAudio() {
     status.textContent =
       "🟢 Audio preloaded — ready.";
 
+
     console.log(
       "Audio preload complete:",
       preloadedAudio.size,
@@ -400,30 +451,96 @@ async function preloadAllAudio() {
 
 
 // --------------------------------------------------
+// CLEAR REPEAT TIMER
+// --------------------------------------------------
+
+function clearRepeatTimer() {
+
+  if (repeatTimer !== null) {
+
+    clearTimeout(
+      repeatTimer
+    );
+
+    repeatTimer =
+      null;
+
+  }
+
+}
+
+
+// --------------------------------------------------
+// CLEAR FADE TIMERS
+// --------------------------------------------------
+
+function clearFadeTimers() {
+
+  for (
+    const timer
+    of fadeTimers
+  ) {
+
+    clearInterval(timer);
+
+  }
+
+  fadeTimers.clear();
+
+}
+
+
+// --------------------------------------------------
 // SCHEDULE REPEAT
 // --------------------------------------------------
 
 function scheduleRepeat() {
 
-  clearTimeout(
-    repeatTimer
-  );
+  clearRepeatTimer();
 
 
-  if (!musicAudio) return;
+  if (!musicAudio) {
 
-  if (!repeatMusic) return;
+    return;
+
+  }
 
 
+  if (!repeatMusic) {
+
+    return;
+
+  }
+
+
+  const generation =
+    musicGeneration;
+
+
+  // If metadata isn't available yet,
+  // wait for it.
   if (
     !Number.isFinite(
       musicAudio.duration
-    )
+    ) ||
+    musicAudio.duration <= 0
   ) {
 
     musicAudio.addEventListener(
       "loadedmetadata",
       () => {
+
+        // Make sure this is still the
+        // currently active music player.
+        if (
+          generation !==
+          musicGeneration
+        ) {
+
+          return;
+
+        }
+
 
         scheduleRepeat();
 
@@ -439,26 +556,55 @@ function scheduleRepeat() {
   }
 
 
-  // Wait until we are 0.25 seconds
-  // from the end of the song.
   const remaining =
     musicAudio.duration -
-    musicAudio.currentTime -
+    musicAudio.currentTime;
+
+
+  // We want the new copy to begin
+  // REPEAT_OVERLAP seconds before the end.
+  const timeUntilOverlap =
+    remaining -
     REPEAT_OVERLAP;
 
 
   const delay =
     Math.max(
       0,
-      remaining * 1000
+      timeUntilOverlap * 1000
     );
+
+
+  console.log(
+    "Repeat scheduled in:",
+    delay,
+    "ms"
+  );
 
 
   repeatTimer =
     setTimeout(
       () => {
 
-        repeatSong();
+        repeatTimer =
+          null;
+
+
+        // Ignore an old timer if a new
+        // song has been selected.
+        if (
+          generation !==
+          musicGeneration
+        ) {
+
+          return;
+
+        }
+
+
+        repeatSong(
+          generation
+        );
 
       },
       delay
@@ -471,32 +617,76 @@ function scheduleRepeat() {
 // REPEAT SONG
 // --------------------------------------------------
 
-function repeatSong() {
+function repeatSong(
+  generation
+) {
 
-  if (!musicAudio) return;
+  if (!musicAudio) {
 
-  if (!repeatMusic) return;
+    return;
 
-  if (!currentMusicFile) return;
+  }
+
+
+  if (!repeatMusic) {
+
+    return;
+
+  }
+
+
+  if (!currentMusicFile) {
+
+    return;
+
+  }
+
+
+  // Do not allow an old repeat operation
+  // to touch a newer song.
+  if (
+    generation !==
+    musicGeneration
+  ) {
+
+    return;
+
+  }
 
 
   const oldAudio =
     musicAudio;
 
 
+  const file =
+    currentMusicFile;
+
+
+  const url =
+    currentMusicUrl;
+
+
+  const audioSource =
+    preloadedAudio.has(file)
+
+      ? preloadedAudio.get(file)
+
+      : url;
+
+
+  console.log(
+    "REPEATING SONG:",
+    file
+  );
+
+
+  // ------------------------------------------------
+  // CREATE NEW COPY
+  // ------------------------------------------------
+
   const newAudio =
     new Audio(
-
-      preloadedAudio.has(
-        currentMusicFile
-      )
-
-        ? preloadedAudio.get(
-            currentMusicFile
-          )
-
-        : currentMusicUrl
-
+      audioSource
     );
 
 
@@ -504,21 +694,54 @@ function repeatSong() {
     1;
 
 
-  newAudio.play()
-    .catch(error => {
-
-      console.error(
-        "Repeat playback failed:",
-        error
-      );
-
-    });
+  newAudio.loop =
+    false;
 
 
-  // Fade the old copy out during
-  // the 0.25 second overlap.
+  // ------------------------------------------------
+  // MAKE NEW COPY CURRENT
+  // ------------------------------------------------
+
+  musicAudio =
+    newAudio;
+
+
+  // ------------------------------------------------
+  // START NEW COPY
+  // ------------------------------------------------
+
+  if (audioEnabled) {
+
+    newAudio.play()
+      .catch(error => {
+
+        console.error(
+          "Repeat playback failed:",
+          error
+        );
+
+        // If this particular copy failed,
+        // do not leave a stale repeat timer.
+        if (
+          musicAudio === newAudio
+        ) {
+
+          clearRepeatTimer();
+
+        }
+
+      });
+
+  }
+
+
+  // ------------------------------------------------
+  // FADE OLD COPY
+  // ------------------------------------------------
+
   const fadeSteps =
     10;
+
 
   let step =
     0;
@@ -528,6 +751,26 @@ function repeatSong() {
     setInterval(
       () => {
 
+        // If the old audio is no longer
+        // relevant, stop the fade.
+        if (
+          oldAudio !== musicAudio &&
+          generation !== musicGeneration
+        ) {
+
+          clearInterval(
+            fadeTimer
+          );
+
+          fadeTimers.delete(
+            fadeTimer
+          );
+
+          return;
+
+        }
+
+
         step++;
 
 
@@ -535,7 +778,10 @@ function repeatSong() {
           Math.max(
             0,
             1 -
-              (step / fadeSteps)
+              (
+                step /
+                fadeSteps
+              )
           );
 
 
@@ -547,11 +793,28 @@ function repeatSong() {
             fadeTimer
           );
 
+          fadeTimers.delete(
+            fadeTimer
+          );
+
 
           oldAudio.pause();
 
-          oldAudio.currentTime =
-            0;
+
+          try {
+
+            oldAudio.currentTime =
+              0;
+
+          } catch (error) {
+
+            console.warn(
+              "Could not reset old audio:",
+              error
+            );
+
+          }
+
 
           oldAudio.volume =
             1;
@@ -559,19 +822,45 @@ function repeatSong() {
         }
 
       },
-      (REPEAT_OVERLAP * 1000) /
-        fadeSteps
+      (
+        REPEAT_OVERLAP *
+        1000
+      ) /
+      fadeSteps
     );
 
 
-  musicAudio =
-    newAudio;
+  fadeTimers.add(
+    fadeTimer
+  );
 
 
-  // Schedule the next repeat.
+  // ------------------------------------------------
+  // SCHEDULE NEXT REPEAT
+  // ------------------------------------------------
+
   newAudio.addEventListener(
     "loadedmetadata",
     () => {
+
+      if (
+        musicAudio !== newAudio
+      ) {
+
+        return;
+
+      }
+
+
+      if (
+        generation !==
+        musicGeneration
+      ) {
+
+        return;
+
+      }
+
 
       scheduleRepeat();
 
@@ -580,6 +869,19 @@ function repeatSong() {
       once: true
     }
   );
+
+
+  // In case metadata is already available.
+  if (
+    Number.isFinite(
+      newAudio.duration
+    ) &&
+    newAudio.duration > 0
+  ) {
+
+    scheduleRepeat();
+
+  }
 
 }
 
@@ -590,25 +892,174 @@ function repeatSong() {
 
 function stopMusic() {
 
-  clearTimeout(
-    repeatTimer
-  );
+  clearRepeatTimer();
 
-  repeatTimer =
-    null;
+  clearFadeTimers();
 
 
   if (musicAudio) {
 
     musicAudio.pause();
 
-    musicAudio.currentTime =
-      0;
+
+    try {
+
+      musicAudio.currentTime =
+        0;
+
+    } catch (error) {
+
+      console.warn(
+        "Could not reset music:",
+        error
+      );
+
+    }
+
+
+    musicAudio.volume =
+      1;
 
   }
 
+
   musicAudio =
     null;
+
+}
+
+
+// --------------------------------------------------
+// START NEW MUSIC
+// --------------------------------------------------
+
+async function startMusic(
+  file,
+  url
+) {
+
+  // Invalidate every old repeat operation.
+  musicGeneration++;
+
+
+  const generation =
+    musicGeneration;
+
+
+  // Stop the previous song completely.
+  stopMusic();
+
+
+  currentMusicFile =
+    file;
+
+  currentMusicUrl =
+    url;
+
+
+  const audioSource =
+    preloadedAudio.has(file)
+
+      ? preloadedAudio.get(file)
+
+      : url;
+
+
+  const audio =
+    new Audio(
+      audioSource
+    );
+
+
+  audio.loop =
+    false;
+
+
+  audio.volume =
+    1;
+
+
+  musicAudio =
+    audio;
+
+
+  audio.onended =
+    () => {
+
+      // Ignore an ended event from an
+      // older audio instance.
+      if (
+        musicAudio !== audio
+      ) {
+
+        return;
+
+      }
+
+
+      console.log(
+        "Music ended."
+      );
+
+
+      // With repeat enabled, repeatSong()
+      // should normally have replaced this
+      // audio before the natural end.
+      if (!repeatMusic) {
+
+        status.textContent =
+          "🟢 Music finished";
+
+      }
+
+    };
+
+
+  // ------------------------------------------------
+  // PLAY
+  // ------------------------------------------------
+
+  if (!audioEnabled) {
+
+    status.textContent =
+      "⚠️ Music received. Click Enable Audio.";
+
+    return;
+
+  }
+
+
+  try {
+
+    await audio.play();
+
+
+    // Make sure this is still the current
+    // song after play() resolves.
+    if (
+      generation !==
+      musicGeneration
+    ) {
+
+      return;
+
+    }
+
+
+    scheduleRepeat();
+
+  } catch (error) {
+
+    console.error(
+      "Music playback failed:",
+      error
+    );
+
+
+    status.textContent =
+      "🔴 Music playback failed.";
+
+  }
 
 }
 
@@ -643,11 +1094,30 @@ joinButton.onclick =
       "Connecting...";
 
 
+    // Stop any old local music.
+    musicGeneration++;
+
+    stopMusic();
+
+
+    currentMusicFile =
+      null;
+
+    currentMusicUrl =
+      null;
+
+    repeatMusic =
+      false;
+
+
     if (channel) {
 
       await supabase.removeChannel(
         channel
       );
+
+      channel =
+        null;
 
     }
 
@@ -720,7 +1190,7 @@ joinButton.onclick =
       {
         event: "play-music"
       },
-      message => {
+      async message => {
 
         const payload =
           message.payload;
@@ -728,69 +1198,30 @@ joinButton.onclick =
 
         if (
           !payload ||
-          !payload.url
+          !payload.url ||
+          !payload.file
         ) {
+
+          console.warn(
+            "Invalid play-music payload:",
+            payload
+          );
 
           return;
 
         }
 
 
-        if (musicAudio) {
-
-          musicAudio.pause();
-
-        }
-
-
-        currentMusicFile =
-          payload.file;
-
-        currentMusicUrl =
-          payload.url;
+        console.log(
+          "MUSIC PLAY:",
+          payload
+        );
 
 
-        stopMusic();
-
-
-        const audioSource =
-          preloadedAudio.has(
-            payload.file
-          )
-
-            ? preloadedAudio.get(
-                payload.file
-              )
-
-            : payload.url;
-
-
-        musicAudio =
-          new Audio(
-            audioSource
-          );
-
-
-        musicAudio.loop =
+        // A new song always starts with
+        // repeat disabled.
+        repeatMusic =
           false;
-
-
-        musicAudio.onended =
-          () => {
-
-            console.log(
-              "Music ended."
-            );
-
-
-            if (!repeatMusic) {
-
-              status.textContent =
-                "🟢 Music finished";
-
-            }
-
-          };
 
 
         status.textContent =
@@ -798,32 +1229,10 @@ joinButton.onclick =
           payload.file;
 
 
-        if (!audioEnabled) {
-
-          status.textContent =
-            "⚠️ Music received. Click Enable Audio.";
-
-          return;
-
-        }
-
-
-        musicAudio.play()
-          .then(() => {
-
-            scheduleRepeat();
-
-          })
-          .catch(error => {
-
-            console.error(
-              error
-            );
-
-            status.textContent =
-              "🔴 Music playback failed.";
-
-          });
+        await startMusic(
+          payload.file,
+          payload.url
+        );
 
       }
     );
@@ -845,22 +1254,18 @@ joinButton.onclick =
         );
 
 
+        clearRepeatTimer();
+
+
         if (musicAudio) {
 
           musicAudio.pause();
 
-          clearTimeout(
-            repeatTimer
-          );
-
-          repeatTimer =
-            null;
-
-
-          status.textContent =
-            "⏸ Music paused";
-
         }
+
+
+        status.textContent =
+          "⏸ Music paused";
 
       }
     );
@@ -891,12 +1296,19 @@ joinButton.onclick =
           message?.payload?.repeat;
 
 
-        // Only respond to the repeat command
-        // for the currently playing song.
+        // If the host specifies a file,
+        // only change repeat for that song.
         if (
           file &&
           currentMusicFile !== file
         ) {
+
+          console.log(
+            "Ignoring repeat command for:",
+            file,
+            "Current song:",
+            currentMusicFile
+          );
 
           return;
 
@@ -907,26 +1319,49 @@ joinButton.onclick =
           !!repeat;
 
 
+        // ------------------------------------------------
+        // ENABLE REPEAT
+        // ------------------------------------------------
+
         if (repeatMusic) {
 
-          scheduleRepeat();
-
-        } else {
-
-          clearTimeout(
-            repeatTimer
+          console.log(
+            "Repeat ENABLED for:",
+            currentMusicFile
           );
 
-          repeatTimer =
-            null;
+
+          if (musicAudio) {
+
+            scheduleRepeat();
+
+          }
+
+
+          status.textContent =
+            "🔁 Music repeating";
 
         }
 
 
-        status.textContent =
-          repeatMusic
-            ? "🔁 Music repeating"
-            : "🎵 Repeat off";
+        // ------------------------------------------------
+        // DISABLE REPEAT
+        // ------------------------------------------------
+
+        else {
+
+          console.log(
+            "Repeat DISABLED"
+          );
+
+
+          clearRepeatTimer();
+
+
+          status.textContent =
+            "🎵 Repeat off";
+
+        }
 
       }
     );
@@ -938,6 +1373,12 @@ joinButton.onclick =
 
     channel.subscribe(
       state => {
+
+        console.log(
+          "CHANNEL STATE:",
+          state
+        );
+
 
         if (
           state === "SUBSCRIBED"
@@ -951,6 +1392,7 @@ joinButton.onclick =
 
           message.textContent =
             "";
+
 
           status.textContent =
             audioEnabled
@@ -970,8 +1412,10 @@ joinButton.onclick =
           joinButton.disabled =
             false;
 
+
           message.textContent =
             "Could not connect to that session.";
+
 
           status.textContent =
             "🔴 Connection failed.";
@@ -990,6 +1434,10 @@ joinButton.onclick =
 
 leaveButton.onclick =
   async () => {
+
+    // Invalidate all pending repeat work.
+    musicGeneration++;
+
 
     stopMusic();
 
@@ -1040,11 +1488,14 @@ leaveButton.onclick =
     player.style.display =
       "none";
 
+
     codeInput.value =
       "";
 
+
     joinButton.disabled =
       false;
+
 
     status.textContent =
       "Enter the host's session code.";

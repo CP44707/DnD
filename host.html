@@ -269,6 +269,17 @@ let uploadedMusic = [];
 
 
 // --------------------------------------------------
+// MUSIC REPEAT STATE
+// --------------------------------------------------
+
+// The song currently being controlled by the host.
+let currentMusicSong = null;
+
+// Whether repeat is currently enabled.
+let repeatMusic = false;
+
+
+// --------------------------------------------------
 // SESSION CODE
 // --------------------------------------------------
 
@@ -291,6 +302,7 @@ function generateCode() {
   }
 
   return result;
+
 }
 
 
@@ -408,6 +420,12 @@ async function createSession() {
     channel = null;
 
   }
+
+
+  // Reset music/repeat state
+  // whenever a new session is created.
+  currentMusicSong = null;
+  repeatMusic = false;
 
 
   sessionCode =
@@ -611,8 +629,6 @@ async function uploadFile(
     console.error(dbError);
 
 
-    // Remove uploaded file if database insert fails
-
     await supabase.storage
       .from("soundboard")
       .remove([
@@ -680,12 +696,12 @@ async function getSignedUrl(path) {
     data,
     error
   } =
-    await supabase.storage
-      .from("soundboard")
-      .createSignedUrl(
-        path,
-        60 * 10
-      );
+  await supabase.storage
+    .from("soundboard")
+    .createSignedUrl(
+      path,
+      60 * 10
+    );
 
 
   if (error) {
@@ -741,23 +757,23 @@ async function playSound(sound) {
   const {
     error
   } =
-    await channel.send({
+  await channel.send({
 
-      type: "broadcast",
+    type: "broadcast",
 
-      event: "play-sound",
+    event: "play-sound",
 
-      payload: {
+    payload: {
 
-        source: "supabase",
+      source: "supabase",
 
-        file: sound.name,
+      file: sound.name,
 
-        url: url
+      url: url
 
-      }
+    }
 
-    });
+  });
 
 
   if (error) {
@@ -812,26 +828,87 @@ async function playMusic(song) {
   if (!url) return;
 
 
-  const {
-    error
-  } =
+  // ------------------------------------------------
+  // If a different song is being played,
+  // turn repeat off first.
+  // ------------------------------------------------
+
+  const differentSong =
+    !currentMusicSong ||
+    currentMusicSong.name !== song.name;
+
+
+  if (
+    differentSong &&
+    repeatMusic
+  ) {
+
+    repeatMusic = false;
+
+
     await channel.send({
 
       type: "broadcast",
 
-      event: "play-music",
+      event: "repeat-music",
 
       payload: {
 
         source: "supabase",
 
-        file: song.name,
+        file: currentMusicSong
+          ? currentMusicSong.name
+          : null,
 
-        url: url
+        repeat: false
 
       }
 
     });
+
+  }
+
+
+  // The newly playing song becomes current.
+  currentMusicSong =
+    song;
+
+
+  // New song starts with repeat off.
+  repeatMusic = false;
+
+
+  // ------------------------------------------------
+  // Reset all repeat buttons.
+  // ------------------------------------------------
+
+  updateRepeatButtons();
+
+
+  // ------------------------------------------------
+  // Broadcast music.
+  // ------------------------------------------------
+
+  const {
+    error
+  } =
+  await channel.send({
+
+    type: "broadcast",
+
+    event: "play-music",
+
+    payload: {
+
+      source: "supabase",
+
+      file: song.name,
+
+      url: url
+
+    }
+
+  });
 
 
   if (error) {
@@ -858,26 +935,14 @@ async function playMusic(song) {
 // TOGGLE MUSIC REPEAT
 // --------------------------------------------------
 
-// --------------------------------------------------
-// TOGGLE MUSIC REPEAT
-// --------------------------------------------------
-
 async function toggleRepeat(
-  song,
-  repeat
+  song
 ) {
 
-  console.log(
-    "TOGGLE MUSIC REPEAT:",
-    song,
-    repeat
-  );
+  if (!channel) {
 
-
-  if (!song || !song.file) {
-
-    console.error(
-      "Cannot toggle repeat: no song file."
+    alert(
+      "No active player session."
     );
 
     return;
@@ -885,59 +950,144 @@ async function toggleRepeat(
   }
 
 
-  // Update the host button state.
-  repeatMusic = !!repeat;
+  if (!song) {
 
-
-  // Update the button visually if one exists.
-  if (repeatButton) {
-
-    repeatButton.classList.toggle(
-      "repeat-active",
-      repeatMusic
+    console.error(
+      "No song supplied to repeat toggle."
     );
 
-    repeatButton.textContent =
-      repeatMusic
-        ? "🔁 Repeat On"
-        : "🔁 Repeat Off";
+    return;
 
   }
 
 
-  // Broadcast the repeat command
-  // to every connected player.
-  if (channel) {
+  // If this is a different song from the
+  // currently playing song, make it current.
+  if (
+    !currentMusicSong ||
+    currentMusicSong.name !== song.name
+  ) {
 
-    await channel.send({
+    currentMusicSong =
+      song;
 
-      type: "broadcast",
-
-      event: "repeat-music",
-
-      payload: {
-
-        file: song.file,
-
-        repeat: repeatMusic
-
-      }
-
-    });
+    repeatMusic = false;
 
   }
+
+
+  // Toggle the global repeat state.
+  repeatMusic =
+    !repeatMusic;
 
 
   console.log(
-    "REPEAT BROADCAST:",
+    "TOGGLE MUSIC REPEAT:",
     {
-      file: song.file,
+      file: song.name,
       repeat: repeatMusic
     }
   );
 
+
+  // ------------------------------------------------
+  // Broadcast repeat state to players.
+  // ------------------------------------------------
+
+  const {
+    error
+  } =
+  await channel.send({
+
+    type: "broadcast",
+
+    event: "repeat-music",
+
+    payload: {
+
+      source: "supabase",
+
+      file: song.name,
+
+      repeat: repeatMusic
+
+    }
+
+  });
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Failed to change repeat:\n" +
+      error.message;
+
+    return;
+
+  }
+
+
+  // ------------------------------------------------
+  // Update host UI.
+  // ------------------------------------------------
+
+  updateRepeatButtons();
+
+
+  status.textContent =
+    repeatMusic
+
+      ? "🔁 Repeat enabled: " +
+        song.name
+
+      : "🎵 Repeat disabled: " +
+        song.name;
+
 }
 
+
+// --------------------------------------------------
+// UPDATE REPEAT BUTTONS
+// --------------------------------------------------
+
+function updateRepeatButtons() {
+
+  const buttons =
+    music.querySelectorAll(
+      ".repeat-button"
+    );
+
+
+  buttons.forEach(
+    button => {
+
+      const file =
+        button.dataset.file;
+
+
+      const active =
+        repeatMusic &&
+        currentMusicSong &&
+        currentMusicSong.name === file;
+
+
+      button.classList.toggle(
+        "repeat-active",
+        active
+      );
+
+
+      button.textContent =
+        active
+          ? "🔁 Repeat On"
+          : "🔁 Repeat";
+
+    }
+  );
+
+}
 
 
 // --------------------------------------------------
@@ -985,11 +1135,11 @@ async function deleteFile(item) {
   const {
     error: storageError
   } =
-    await supabase.storage
-      .from("soundboard")
-      .remove([
-        item.path
-      ]);
+  await supabase.storage
+    .from("soundboard")
+    .remove([
+      item.path
+    ]);
 
 
   if (storageError) {
@@ -1012,11 +1162,11 @@ async function deleteFile(item) {
   const {
     error: dbError
   } =
-    await supabase
-      .from("soundboard_files")
-      .delete()
-      .eq("id", item.id)
-      .eq("user_id", user.id);
+  await supabase
+    .from("soundboard_files")
+    .delete()
+    .eq("id", item.id)
+    .eq("user_id", user.id);
 
 
   if (dbError) {
@@ -1048,6 +1198,19 @@ async function deleteFile(item) {
     renderSounds();
 
   } else {
+
+    // If deleting the currently playing song,
+    // clear repeat state.
+    if (
+      currentMusicSong &&
+      currentMusicSong.id === item.id
+    ) {
+
+      currentMusicSong = null;
+      repeatMusic = false;
+
+    }
+
 
     uploadedMusic =
       uploadedMusic.filter(
@@ -1118,15 +1281,6 @@ function renderSounds() {
 
       playButton.onclick =
         () => playSound(sound);
-
-      repeatButton.onclick = () => {
-
-        toggleRepeat(
-          currentMusic,
-          !repeatMusic
-        );
-
-      };
 
 
       const deleteButton =
@@ -1219,30 +1373,21 @@ function renderMusic() {
       const repeatButton =
         document.createElement("button");
 
+      repeatButton.className =
+        "repeat-button";
+
+      repeatButton.dataset.file =
+        song.name;
+
+
       repeatButton.textContent =
         "🔁 Repeat";
-
-
-      let repeating = false;
 
 
       repeatButton.onclick =
         () => {
 
-          repeating =
-            !repeating;
-
-
-          repeatButton.classList.toggle(
-            "repeat-active",
-            repeating
-          );
-
-
-          toggleRepeat(
-            song,
-            repeating
-          );
+          toggleRepeat(song);
 
         };
 
@@ -1274,6 +1419,11 @@ function renderMusic() {
 
     }
   );
+
+
+  // Make sure the correct button reflects
+  // the current repeat state.
+  updateRepeatButtons();
 
 }
 
@@ -1434,6 +1584,11 @@ document
       channel = null;
 
     }
+
+
+    currentMusicSong = null;
+
+    repeatMusic = false;
 
 
     await supabase.auth.signOut();
