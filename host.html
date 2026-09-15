@@ -1119,6 +1119,15 @@ function renderSounds() {
       playButton.onclick =
         () => playSound(sound);
 
+      repeatButton.onclick = () => {
+
+        toggleRepeat(
+          currentMusic,
+          !repeatMusic
+        );
+
+      };
+
 
       const deleteButton =
         document.createElement("button");
