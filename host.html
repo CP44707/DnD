@@ -85,6 +85,11 @@
     .upload-row {
       margin-bottom: 15px;
     }
+
+    .repeat-active {
+      background: #4caf50;
+      color: white;
+    }
   </style>
 </head>
 
@@ -850,6 +855,76 @@ async function playMusic(song) {
 
 
 // --------------------------------------------------
+// TOGGLE MUSIC REPEAT
+// --------------------------------------------------
+
+async function toggleRepeat(
+  song,
+  repeat
+) {
+
+  if (!channel) {
+
+    alert(
+      "No active player session."
+    );
+
+    return;
+
+  }
+
+
+  console.log(
+    "Repeat:",
+    song.name,
+    repeat
+  );
+
+
+  const {
+    error
+  } =
+    await channel.send({
+
+      type: "broadcast",
+
+      event: "repeat-music",
+
+      payload: {
+
+        source: "supabase",
+
+        file: song.name,
+
+        repeat: repeat
+
+      }
+
+    });
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Failed to change repeat:\n" +
+      error.message;
+
+    return;
+
+  }
+
+
+  status.textContent =
+    repeat
+      ? "🔁 Repeat enabled: " + song.name
+      : "Repeat disabled: " + song.name;
+
+}
+
+
+// --------------------------------------------------
 // DELETE FILE
 // --------------------------------------------------
 
@@ -1098,6 +1173,10 @@ function renderMusic() {
         song.name;
 
 
+      // ------------------------------------------------
+      // PLAY BUTTON
+      // ------------------------------------------------
+
       const playButton =
         document.createElement("button");
 
@@ -1107,6 +1186,45 @@ function renderMusic() {
       playButton.onclick =
         () => playMusic(song);
 
+
+      // ------------------------------------------------
+      // REPEAT BUTTON
+      // ------------------------------------------------
+
+      const repeatButton =
+        document.createElement("button");
+
+      repeatButton.textContent =
+        "🔁 Repeat";
+
+
+      let repeating = false;
+
+
+      repeatButton.onclick =
+        () => {
+
+          repeating =
+            !repeating;
+
+
+          repeatButton.classList.toggle(
+            "repeat-active",
+            repeating
+          );
+
+
+          toggleRepeat(
+            song,
+            repeating
+          );
+
+        };
+
+
+      // ------------------------------------------------
+      // DELETE BUTTON
+      // ------------------------------------------------
 
       const deleteButton =
         document.createElement("button");
@@ -1121,6 +1239,8 @@ function renderMusic() {
       row.appendChild(name);
 
       row.appendChild(playButton);
+
+      row.appendChild(repeatButton);
 
       row.appendChild(deleteButton);
 
