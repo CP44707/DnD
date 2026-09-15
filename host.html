@@ -858,15 +858,26 @@ async function playMusic(song) {
 // TOGGLE MUSIC REPEAT
 // --------------------------------------------------
 
+// --------------------------------------------------
+// TOGGLE MUSIC REPEAT
+// --------------------------------------------------
+
 async function toggleRepeat(
   song,
   repeat
 ) {
 
-  if (!channel) {
+  console.log(
+    "TOGGLE MUSIC REPEAT:",
+    song,
+    repeat
+  );
 
-    alert(
-      "No active player session."
+
+  if (!song || !song.file) {
+
+    console.error(
+      "Cannot toggle repeat: no song file."
     );
 
     return;
@@ -874,16 +885,30 @@ async function toggleRepeat(
   }
 
 
-  console.log(
-    "Repeat:",
-    song.name,
-    repeat
-  );
+  // Update the host button state.
+  repeatMusic = !!repeat;
 
 
-  const {
-    error
-  } =
+  // Update the button visually if one exists.
+  if (repeatButton) {
+
+    repeatButton.classList.toggle(
+      "repeat-active",
+      repeatMusic
+    );
+
+    repeatButton.textContent =
+      repeatMusic
+        ? "🔁 Repeat On"
+        : "🔁 Repeat Off";
+
+  }
+
+
+  // Broadcast the repeat command
+  // to every connected player.
+  if (channel) {
+
     await channel.send({
 
       type: "broadcast",
@@ -892,36 +917,27 @@ async function toggleRepeat(
 
       payload: {
 
-        source: "supabase",
+        file: song.file,
 
-        file: song.name,
-
-        repeat: repeat
+        repeat: repeatMusic
 
       }
 
     });
 
-
-  if (error) {
-
-    console.error(error);
-
-    status.textContent =
-      "🔴 Failed to change repeat:\n" +
-      error.message;
-
-    return;
-
   }
 
 
-  status.textContent =
-    repeat
-      ? "🔁 Repeat enabled: " + song.name
-      : "Repeat disabled: " + song.name;
+  console.log(
+    "REPEAT BROADCAST:",
+    {
+      file: song.file,
+      repeat: repeatMusic
+    }
+  );
 
 }
+
 
 
 // --------------------------------------------------
