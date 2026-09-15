@@ -45,6 +45,17 @@
     #status {
       white-space: pre-wrap;
     }
+
+    #embedContainer {
+      margin: 20px 0;
+    }
+
+    #embedFrame {
+      width: 100%;
+      min-height: 360px;
+      border: 0;
+      background: white;
+    }
   </style>
 </head>
 
@@ -79,6 +90,19 @@
 <div id="player" class="box">
 
   <h2>Connected</h2>
+
+  <div id="embedContainer" hidden>
+
+    <h3>Embedded Link</h3>
+
+    <iframe
+      id="embedFrame"
+      title="Embedded link"
+      sandbox="allow-forms allow-popups allow-scripts"
+      referrerpolicy="no-referrer"
+    ></iframe>
+
+  </div>
 
   <button id="enableAudio">
     🔊 Enable Audio
@@ -139,6 +163,12 @@ const status =
 
 const message =
   document.getElementById("message");
+
+const embedContainer =
+  document.getElementById("embedContainer");
+
+const embedFrame =
+  document.getElementById("embedFrame");
 
 
 // --------------------------------------------------
@@ -1140,6 +1170,64 @@ joinButton.onclick =
       () => {
 
         preloadAllAudio();
+
+      }
+    );
+
+
+    // ------------------------------------------------
+    // EMBEDDED LINK
+    // ------------------------------------------------
+
+    channel.on(
+      "broadcast",
+      {
+        event: "embed-link"
+      },
+      message => {
+
+        const url =
+          message?.payload?.url;
+
+
+        let parsedUrl;
+
+
+        try {
+
+          parsedUrl =
+            new URL(url);
+
+        } catch (error) {
+
+          console.warn(
+            "Invalid embedded link:",
+            url
+          );
+
+          return;
+
+        }
+
+
+        if (
+          parsedUrl.protocol !== "http:" &&
+          parsedUrl.protocol !== "https:"
+        ) {
+
+          return;
+
+        }
+
+
+        embedFrame.src =
+          parsedUrl.href;
+
+        embedContainer.hidden =
+          false;
+
+        status.textContent =
+          "🔗 Embedded link received.";
 
       }
     );

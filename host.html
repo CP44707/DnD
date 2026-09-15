@@ -202,6 +202,27 @@
 
   </div>
 
+
+  <div class="box">
+
+    <h2>🔗 Embedded Link</h2>
+
+    <div class="upload-row">
+
+      <input
+        id="embedUrl"
+        type="url"
+        placeholder="https://example.com"
+      >
+
+      <button id="postEmbed">
+        Post Link
+      </button>
+
+    </div>
+
+  </div>
+
 </div>
 
 
@@ -514,6 +535,99 @@ async function preloadAllAudio() {
 
   status.textContent =
     "🟢 Preload command sent to players.";
+
+}
+
+
+// --------------------------------------------------
+// BROADCAST EMBEDDED LINK
+// --------------------------------------------------
+
+async function postEmbed() {
+
+  if (!channel) {
+
+    alert(
+      "No active player session."
+    );
+
+    return;
+
+  }
+
+
+  const input =
+    document.getElementById("embedUrl");
+
+
+  const url =
+    input.value.trim();
+
+
+  let parsedUrl;
+
+
+  try {
+
+    parsedUrl =
+      new URL(url);
+
+  } catch (error) {
+
+    status.textContent =
+      "🔴 Enter a valid link.";
+
+    return;
+
+  }
+
+
+  if (
+    parsedUrl.protocol !== "http:" &&
+    parsedUrl.protocol !== "https:"
+  ) {
+
+    status.textContent =
+      "🔴 Link must use http or https.";
+
+    return;
+
+  }
+
+
+  const {
+    error
+  } =
+  await channel.send({
+
+    type: "broadcast",
+
+    event: "embed-link",
+
+    payload: {
+
+      url: parsedUrl.href
+
+    }
+
+  });
+
+
+  if (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "🔴 Failed to post link:\n" +
+      error.message;
+
+    return;
+
+  }
+
+
+  status.textContent =
+    "🔗 Link posted to player.";
 
 }
 
@@ -1617,6 +1731,16 @@ document
   .getElementById("preloadAudio")
   .onclick =
   preloadAllAudio;
+
+
+// --------------------------------------------------
+// POST EMBEDDED LINK
+// --------------------------------------------------
+
+document
+  .getElementById("postEmbed")
+  .onclick =
+  postEmbed;
 
 
 // --------------------------------------------------
